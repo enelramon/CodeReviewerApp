@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.Comment
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.NavigateBefore
 import androidx.compose.material.icons.filled.NavigateNext
 import androidx.compose.material.icons.filled.Person
@@ -98,6 +99,8 @@ import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
 import java.util.Base64
+import com.google.ai.client.generativeai.GenerativeModel
+import com.google.ai.client.generativeai.type.generationConfig
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -499,19 +502,45 @@ fun ReviewScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Button(
-                        onClick = {
-                            viewModel.onEvent(CodeReviewUiEvent.AddComment)
-                        },
-                        enabled = uiState.currentComment.isNotBlank()
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Save,
-                            contentDescription = "Guardar",
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Guardar Comentario")
+                        Button(
+                            onClick = {
+                                viewModel.onEvent(CodeReviewUiEvent.SuggestComment)
+                            },
+                            enabled = !uiState.isSuggesting && !uiState.isLoading
+                        ) {
+                            if (uiState.isSuggesting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Lightbulb,
+                                    contentDescription = "Sugerir",
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(if (uiState.isSuggesting) "Sugiriendo..." else "Sugerir")
+                        }
+                        
+                        Button(
+                            onClick = {
+                                viewModel.onEvent(CodeReviewUiEvent.AddComment)
+                            },
+                            enabled = uiState.currentComment.isNotBlank()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Save,
+                                contentDescription = "Guardar",
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Guardar")
+                        }
                     }
 
                     Row {
@@ -571,9 +600,11 @@ fun SyntaxHighlightedCode(code: String) {
     val annotatedString = buildAnnotatedString {
         var lastIndex = 0
         highlights.getHighlights().forEach { highlight ->
-            // Add text before highlight
+            // Add text before highlight with default color
             if (highlight.location.start > lastIndex) {
-                append(code.substring(lastIndex, highlight.location.start))
+                withStyle(SpanStyle(color = Color.White)) {
+                    append(code.substring(lastIndex, highlight.location.start))
+                }
             }
 
             // Add highlighted text
@@ -594,9 +625,11 @@ fun SyntaxHighlightedCode(code: String) {
             lastIndex = highlight.location.end
         }
 
-        // Add remaining text
+        // Add remaining text with default color
         if (lastIndex < code.length) {
-            append(code.substring(lastIndex))
+            withStyle(SpanStyle(color = Color.White)) {
+                append(code.substring(lastIndex))
+            }
         }
     }
 
@@ -610,7 +643,6 @@ fun SyntaxHighlightedCode(code: String) {
                 text = annotatedString,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 12.sp,
-                color = Color.White,
                 lineHeight = 18.sp
             )
         }
@@ -747,6 +779,7 @@ data class CodeReviewUiState(
     val isLoadingBranches: Boolean = false,
     val files: List<FileItem> = emptyList(),
     val isLoading: Boolean = false,
+    val isSuggesting: Boolean = false,
     val error: String? = null,
     val currentFileContent: String = "",
     val currentFileName: String = "",
@@ -769,6 +802,7 @@ sealed interface CodeReviewUiEvent {
     data class LoadFileContent(val file: FileItem) : CodeReviewUiEvent
     data class UpdateComment(val comment: String) : CodeReviewUiEvent
     data object AddComment : CodeReviewUiEvent
+    data object SuggestComment : CodeReviewUiEvent
 }
 
 // Retrofit API Interface
@@ -797,6 +831,22 @@ interface GitHubApi {
 
 // ViewModel
 class CodeReviewViewModel : ViewModel() {
+    // Gemini API key - In production, this should be stored securely
+    private val geminiApiKey = BuildConfig.GEMINI_API_KEY.takeIf { it.isNotBlank() } ?: ""
+    
+    private val generativeModel = if (geminiApiKey.isNotBlank()) {
+        GenerativeModel(
+            modelName = "gemini-pro",
+            apiKey = geminiApiKey,
+            generationConfig = generationConfig {
+                temperature = 0.7f
+                topK = 40
+                topP = 0.95f
+                maxOutputTokens = 1024
+            }
+        )
+    } else null
+    
     private val json = Json { ignoreUnknownKeys = true }
     private val retrofit = Retrofit.Builder()
         .baseUrl("https://api.github.com/")
@@ -852,6 +902,11 @@ class CodeReviewViewModel : ViewModel() {
             }
             is CodeReviewUiEvent.AddComment -> {
                 addComment()
+            }
+            is CodeReviewUiEvent.SuggestComment -> {
+                viewModelScope.launch {
+                    suggestComment()
+                }
             }
         }
     }
@@ -933,6 +988,63 @@ class CodeReviewViewModel : ViewModel() {
                 )
             } else {
                 currentState
+            }
+        }
+    }
+
+    private suspend fun suggestComment() {
+        if (generativeModel == null) {
+            _uiState.update { 
+                it.copy(error = "Gemini API key no configurada. Agregue GEMINI_API_KEY en local.properties") 
+            }
+            return
+        }
+
+        val currentState = _uiState.value
+        if (currentState.currentFileContent.isBlank()) {
+            return
+        }
+
+        _uiState.update { it.copy(isSuggesting = true, error = null) }
+        
+        try {
+            val prompt = """
+                Eres un experto revisor de código. Analiza el siguiente código y proporciona un comentario de revisión constructivo en español.
+                El comentario debe ser breve, específico y enfocarse en mejoras de:
+                - Calidad del código
+                - Mejores prácticas
+                - Posibles bugs
+                - Rendimiento
+                - Legibilidad
+                
+                Archivo: ${currentState.currentFileName}
+                
+                Código:
+                ```
+                ${currentState.currentFileContent}
+                ```
+                
+                Proporciona solo el comentario de revisión, sin encabezados ni formato adicional.
+            """.trimIndent()
+
+            val response = withContext(Dispatchers.IO) {
+                generativeModel.generateContent(prompt)
+            }
+
+            val suggestion = response.text ?: "No se pudo generar una sugerencia."
+            
+            _uiState.update { 
+                it.copy(
+                    currentComment = suggestion,
+                    isSuggesting = false
+                )
+            }
+        } catch (e: Exception) {
+            _uiState.update {
+                it.copy(
+                    error = "Error al generar sugerencia: ${e.message}",
+                    isSuggesting = false
+                )
             }
         }
     }

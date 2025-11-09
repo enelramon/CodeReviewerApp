@@ -21,6 +21,7 @@ Esta es una aplicación de Android desarrollada en Jetpack Compose que permite r
 - ✅ Resaltado de sintaxis Kotlin con dev.snipme:highlights
 - ✅ Navegación entre pantallas con Jetpack Compose Navigation
 - ✅ Material Design 3
+- ✨ **NUEVO**: Sugerencias automáticas de comentarios con Gemini AI
 
 ## Tecnologías Utilizadas
 
@@ -28,6 +29,7 @@ Esta es una aplicación de Android desarrollada en Jetpack Compose que permite r
 - **ViewModel**: Gestión de estado y lógica de negocio
 - **Retrofit**: Cliente HTTP para consumir la API de GitHub
 - **kotlinx.serialization**: Serialización/deserialización JSON
+- **Gemini AI**: Inteligencia artificial de Google para sugerencias de código
 - **dev.snipme:highlights**: Resaltado de sintaxis de código
 - **Jetpack Navigation**: Navegación entre pantallas
 
@@ -80,10 +82,22 @@ La aplicación consume dos endpoints de la GitHub REST API:
 4. Seleccionar los archivos .kt que deseas revisar usando los checkboxes
 5. Presionar "Siguiente" para ir a la pantalla de revisión
 6. Revisar el código con resaltado de sintaxis
-7. Agregar comentarios sobre el código
-8. Navegar entre archivos con los botones "Anterior" y "Siguiente"
-9. Al finalizar, presionar "Resumen" para ver todos los comentarios
-10. En el resumen, puedes ver todos los comentarios organizados por archivo
+7. **NUEVO**: Presionar "Sugerir" para obtener una sugerencia automática de comentario usando Gemini AI
+8. Agregar o editar comentarios sobre el código
+9. Presionar "Guardar" para guardar el comentario
+10. Navegar entre archivos con los botones "Anterior" y "Siguiente"
+11. Al finalizar, presionar "Resumen" para ver todos los comentarios
+12. En el resumen, puedes ver todos los comentarios organizados por archivo
+
+## Configuración de Gemini AI
+
+Para usar la función de sugerencias automáticas con IA:
+
+1. Obtén una API Key de Gemini en [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Crea un archivo `local.properties` en la raíz del proyecto
+3. Agrega tu API Key: `GEMINI_API_KEY=tu_api_key_aqui`
+
+**Ver [GEMINI_SETUP.md](GEMINI_SETUP.md) para instrucciones detalladas.**
 
 ## Notas
 
