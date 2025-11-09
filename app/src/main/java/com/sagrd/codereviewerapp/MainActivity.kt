@@ -611,7 +611,7 @@ fun SyntaxHighlightedCode(code: String) {
             val text = code.substring(highlight.location.start, highlight.location.end)
             when (highlight) {
                 is ColorHighlight -> {
-                    withStyle(SpanStyle(color = Color(0xFF000000 or highlight.rgb.toLong()))) {
+                    withStyle(SpanStyle(color = Color(0xFF000000L or highlight.rgb.toLong()))) {
                         append(text)
                     }
                 }
