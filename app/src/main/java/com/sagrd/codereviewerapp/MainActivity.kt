@@ -1173,6 +1173,7 @@ fun SelectionScreenPreview() {
                         owner = "enelramon",
                         repo = "CodeReviewerApp",
                         branch = "master",
+                        branches = listOf("master", "main", "develop", "feature/new-ui"),
                         files = listOf(
                             FileItem("app/src/main/java/com/sagrd/codereviewerapp/MainActivity.kt", "abc123", true),
                             FileItem("app/src/main/java/com/sagrd/codereviewerapp/ui/theme/Theme.kt", "def456", false),
