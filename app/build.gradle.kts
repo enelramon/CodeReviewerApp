@@ -62,6 +62,7 @@ dependencies {
 
     // OkHttp
     implementation(libs.okhttp)
+    implementation(libs.okhttp.logging.interceptor)
 
     // Syntax Highlighting
     implementation(libs.highlights)

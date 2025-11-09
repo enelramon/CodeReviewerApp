@@ -54,6 +54,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.http.GET
 import retrofit2.http.Path
@@ -561,7 +562,11 @@ class CodeReviewViewModel : ViewModel() {
     private val retrofit = Retrofit.Builder()
         .baseUrl("https://api.github.com/")
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
-        .client(OkHttpClient.Builder().build())
+        .client(
+            OkHttpClient.Builder()
+                .addInterceptor(HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY))
+                .build()
+        )
         .build()
 
     private val api = retrofit.create(GitHubApi::class.java)
