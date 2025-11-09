@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -198,7 +199,7 @@ fun SelectionScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(text = file.path)
                     }
-                    Divider()
+                    HorizontalDivider()
                 }
             }
 
@@ -377,8 +378,6 @@ fun SyntaxHighlightedCode(code: String) {
                         append(text)
                     }
                 }
-
-                else -> append(text)
             }
             lastIndex = highlight.location.end
         }
