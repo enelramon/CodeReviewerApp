@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -235,32 +236,14 @@ fun SelectionScreen(
                 modifier = Modifier.weight(1f)
             ) {
                 items(uiState.files) { file ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                viewModel.onEvent(
-                                    CodeReviewUiEvent.ToggleFileSelection(
-                                        file
-                                    )
-                                )
-                            }
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked = file.isSelected,
-                            onCheckedChange = {
-                                viewModel.onEvent(
-                                    CodeReviewUiEvent.ToggleFileSelection(
-                                        file
-                                    )
-                                )
-                            }
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = file.path)
-                    }
+                    FileListItem(
+                        file = file,
+                        onToggleSelection = { 
+                            viewModel.onEvent(
+                                CodeReviewUiEvent.ToggleFileSelection(it)
+                            )
+                        }
+                    )
                     HorizontalDivider()
                 }
             }
@@ -277,6 +260,50 @@ fun SelectionScreen(
             ) {
                 Text("Siguiente (${uiState.selectedFiles.size} archivos)")
             }
+        }
+    }
+}
+
+@Composable
+fun FileListItem(
+    file: FileItem,
+    onToggleSelection: (FileItem) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    // Separate filename from directory path
+    val lastSlashIndex = file.path.lastIndexOf('/')
+    val directoryPath = if (lastSlashIndex > 0) file.path.substring(0, lastSlashIndex + 1) else ""
+    val fileName = if (lastSlashIndex >= 0) file.path.substring(lastSlashIndex + 1) else file.path
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onToggleSelection(file) }
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(
+            checked = file.isSelected,
+            onCheckedChange = { onToggleSelection(file) }
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Column {
+            // Directory path - smaller and more subtle
+            if (directoryPath.isNotEmpty()) {
+                Text(
+                    text = directoryPath,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    fontSize = 11.sp
+                )
+            }
+            // Filename - bold and more visible
+            Text(
+                text = fileName,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }
