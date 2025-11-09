@@ -58,6 +58,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -990,6 +991,186 @@ class CodeReviewViewModel : ViewModel() {
                 it.copy(
                     error = e.message ?: "Error al cargar branches",
                     isLoadingBranches = false
+                )
+            }
+        }
+    }
+}
+
+// Preview Functions
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun SelectionScreenPreview() {
+    CodeReviewerAppTheme {
+        SelectionScreen(
+            viewModel = object : CodeReviewViewModel() {
+                init {
+                    _uiState.value = CodeReviewUiState(
+                        repositoryUrl = "https://github.com/enelramon/CodeReviewerApp.git",
+                        owner = "enelramon",
+                        repo = "CodeReviewerApp",
+                        branch = "master",
+                        files = listOf(
+                            FileItem("app/src/main/java/com/sagrd/codereviewerapp/MainActivity.kt", "abc123", true),
+                            FileItem("app/src/main/java/com/sagrd/codereviewerapp/ui/theme/Theme.kt", "def456", false),
+                            FileItem("app/src/main/java/com/sagrd/codereviewerapp/ui/theme/Color.kt", "ghi789", true),
+                            FileItem("app/src/main/java/com/sagrd/codereviewerapp/ui/theme/Type.kt", "jkl012", false),
+                            FileItem("app/src/main/java/com/sagrd/codereviewerapp/navigation/Destinations.kt", "mno345", false)
+                        )
+                    )
+                }
+            },
+            onNavigateToReview = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun SelectionScreenWithErrorPreview() {
+    CodeReviewerAppTheme {
+        SelectionScreen(
+            viewModel = object : CodeReviewViewModel() {
+                init {
+                    _uiState.value = CodeReviewUiState(
+                        repositoryUrl = "https://github.com/enelramon/CodeReviewerApp.git",
+                        owner = "enelramon",
+                        repo = "CodeReviewerApp",
+                        branch = "master",
+                        error = "Error al cargar los archivos del repositorio"
+                    )
+                }
+            },
+            onNavigateToReview = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun ReviewScreenPreview() {
+    CodeReviewerAppTheme {
+        ReviewScreen(
+            viewModel = object : CodeReviewViewModel() {
+                init {
+                    _uiState.value = CodeReviewUiState(
+                        files = listOf(
+                            FileItem("app/src/main/java/com/sagrd/codereviewerapp/MainActivity.kt", "abc123", true),
+                            FileItem("app/src/main/java/com/sagrd/codereviewerapp/ui/theme/Theme.kt", "def456", true)
+                        ),
+                        currentFileName = "MainActivity.kt",
+                        currentFileContent = """
+                            package com.sagrd.codereviewerapp
+                            
+                            import android.os.Bundle
+                            import androidx.activity.ComponentActivity
+                            
+                            class MainActivity : ComponentActivity() {
+                                override fun onCreate(savedInstanceState: Bundle?) {
+                                    super.onCreate(savedInstanceState)
+                                    // Setup code here
+                                }
+                            }
+                        """.trimIndent(),
+                        currentComment = ""
+                    )
+                }
+            },
+            onNavigateToSummary = {},
+            onNavigateBack = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun ReviewScreenWithCommentPreview() {
+    CodeReviewerAppTheme {
+        ReviewScreen(
+            viewModel = object : CodeReviewViewModel() {
+                init {
+                    _uiState.value = CodeReviewUiState(
+                        files = listOf(
+                            FileItem("app/src/main/MainActivity.kt", "abc123", true),
+                            FileItem("app/src/ui/theme/Theme.kt", "def456", true)
+                        ),
+                        currentFileName = "MainActivity.kt",
+                        currentFileContent = """
+                            package com.sagrd.codereviewerapp
+                            
+                            class MainActivity : ComponentActivity() {
+                                override fun onCreate(savedInstanceState: Bundle?) {
+                                    super.onCreate(savedInstanceState)
+                                }
+                            }
+                        """.trimIndent(),
+                        currentComment = "Consider adding error handling here"
+                    )
+                }
+            },
+            onNavigateToSummary = {},
+            onNavigateBack = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun SummaryScreenPreview() {
+    CodeReviewerAppTheme {
+        SummaryScreen(
+            viewModel = object : CodeReviewViewModel() {
+                init {
+                    _uiState.value = CodeReviewUiState(
+                        comments = listOf(
+                            CodeComment("MainActivity.kt", "Great code structure! Consider extracting the ViewModel to a separate file."),
+                            CodeComment("Theme.kt", "The color scheme is well organized. Consider adding more color variants for different states."),
+                            CodeComment("Color.kt", "Good use of Material Design colors. Consider documenting the purpose of each color.")
+                        )
+                    )
+                }
+            },
+            onNavigateToSelection = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun SummaryScreenEmptyPreview() {
+    CodeReviewerAppTheme {
+        SummaryScreen(
+            viewModel = object : CodeReviewViewModel() {
+                init {
+                    _uiState.value = CodeReviewUiState(
+                        comments = emptyList()
+                    )
+                }
+            },
+            onNavigateToSelection = {}
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun FileListItemPreview() {
+    CodeReviewerAppTheme {
+        Surface {
+            Column {
+                FileListItem(
+                    file = FileItem("app/src/main/java/com/sagrd/codereviewerapp/MainActivity.kt", "abc123", false),
+                    onToggleSelection = {}
+                )
+                HorizontalDivider()
+                FileListItem(
+                    file = FileItem("app/src/main/java/com/sagrd/codereviewerapp/ui/theme/Theme.kt", "def456", true),
+                    onToggleSelection = {}
+                )
+                HorizontalDivider()
+                FileListItem(
+                    file = FileItem("MainActivity.kt", "ghi789", false),
+                    onToggleSelection = {}
                 )
             }
         }
