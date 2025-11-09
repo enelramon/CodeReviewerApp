@@ -682,7 +682,7 @@ class CodeReviewViewModel : ViewModel() {
                 api.getBlob(owner, repo, file.sha)
             }
             val decoded = if (blob.encoding == "base64") {
-                String(Base64.getDecoder().decode(blob.content))
+                String(Base64.getDecoder().decode(blob.content.replace("\\s".toRegex(), "")))
             } else {
                 blob.content
             }
