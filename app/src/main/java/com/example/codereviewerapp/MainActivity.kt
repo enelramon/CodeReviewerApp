@@ -22,6 +22,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -75,6 +76,32 @@ data class CodeComment(
     val comment: String
 )
 
+// UI State
+data class CodeReviewUiState(
+    val owner: String = "google",
+    val repo: String = "gson",
+    val branch: String = "main",
+    val files: List<FileItem> = emptyList(),
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val currentFileContent: String = "",
+    val currentFileName: String = "",
+    val currentComment: String = "",
+    val comments: List<CodeComment> = emptyList()
+)
+
+// UI Events
+sealed interface CodeReviewUiEvent {
+    data class UpdateOwner(val owner: String) : CodeReviewUiEvent
+    data class UpdateRepo(val repo: String) : CodeReviewUiEvent
+    data class UpdateBranch(val branch: String) : CodeReviewUiEvent
+    data object LoadFiles : CodeReviewUiEvent
+    data class ToggleFileSelection(val file: FileItem) : CodeReviewUiEvent
+    data class LoadFileContent(val file: FileItem) : CodeReviewUiEvent
+    data class UpdateComment(val comment: String) : CodeReviewUiEvent
+    data object AddComment : CodeReviewUiEvent
+}
+
 // Retrofit API Interface
 interface GitHubApi {
     @GET("repos/{owner}/{repo}/git/trees/{sha}")
@@ -104,69 +131,105 @@ class CodeReviewViewModel : ViewModel() {
 
     private val api = retrofit.create(GitHubApi::class.java)
 
-    var owner by mutableStateOf("google")
-    var repo by mutableStateOf("gson")
-    var branch by mutableStateOf("main")
-    var files by mutableStateOf<List<FileItem>>(emptyList())
-    var isLoading by mutableStateOf(false)
-    var error by mutableStateOf<String?>(null)
-    
-    var currentFileContent by mutableStateOf("")
-    var currentFileName by mutableStateOf("")
-    var currentComment by mutableStateOf("")
-    
-    val comments = mutableStateListOf<CodeComment>()
+    private var _uiState by mutableStateOf(CodeReviewUiState())
+    val uiState: CodeReviewUiState
+        get() = _uiState
 
-    suspend fun loadFiles() {
-        isLoading = true
-        error = null
-        try {
-            val tree = api.getTree(owner, repo, branch, 1)
-            files = tree.tree
-                .filter { it.type == "blob" && it.path.endsWith(".kt") }
-                .map { FileItem(it.path, it.sha) }
-        } catch (e: Exception) {
-            error = e.message ?: "Error loading files"
-        } finally {
-            isLoading = false
+    fun onEvent(event: CodeReviewUiEvent) {
+        when (event) {
+            is CodeReviewUiEvent.UpdateOwner -> {
+                _uiState = _uiState.copy(owner = event.owner)
+            }
+            is CodeReviewUiEvent.UpdateRepo -> {
+                _uiState = _uiState.copy(repo = event.repo)
+            }
+            is CodeReviewUiEvent.UpdateBranch -> {
+                _uiState = _uiState.copy(branch = event.branch)
+            }
+            is CodeReviewUiEvent.LoadFiles -> {
+                // This will be called from a coroutine scope
+                viewModelScope.launch {
+                    loadFiles()
+                }
+            }
+            is CodeReviewUiEvent.ToggleFileSelection -> {
+                toggleFileSelection(event.file)
+            }
+            is CodeReviewUiEvent.LoadFileContent -> {
+                viewModelScope.launch {
+                    loadFileContent(event.file)
+                }
+            }
+            is CodeReviewUiEvent.UpdateComment -> {
+                _uiState = _uiState.copy(currentComment = event.comment)
+            }
+            is CodeReviewUiEvent.AddComment -> {
+                addComment()
+            }
         }
     }
 
-    suspend fun loadFileContent(file: FileItem) {
-        isLoading = true
-        error = null
-        currentFileName = file.path
+    private suspend fun loadFiles() {
+        _uiState = _uiState.copy(isLoading = true, error = null)
         try {
-            val blob = api.getBlob(owner, repo, file.sha)
+            val tree = api.getTree(_uiState.owner, _uiState.repo, _uiState.branch, 1)
+            val filesList = tree.tree
+                .filter { it.type == "blob" && it.path.endsWith(".kt") }
+                .map { FileItem(it.path, it.sha) }
+            _uiState = _uiState.copy(files = filesList, isLoading = false)
+        } catch (e: Exception) {
+            _uiState = _uiState.copy(
+                error = e.message ?: "Error loading files",
+                isLoading = false
+            )
+        }
+    }
+
+    private suspend fun loadFileContent(file: FileItem) {
+        _uiState = _uiState.copy(
+            isLoading = true,
+            error = null,
+            currentFileName = file.path
+        )
+        try {
+            val blob = api.getBlob(_uiState.owner, _uiState.repo, file.sha)
             val decoded = if (blob.encoding == "base64") {
                 String(Base64.getDecoder().decode(blob.content))
             } else {
                 blob.content
             }
-            currentFileContent = decoded
+            _uiState = _uiState.copy(currentFileContent = decoded, isLoading = false)
         } catch (e: Exception) {
-            error = e.message ?: "Error loading file content"
-            currentFileContent = ""
-        } finally {
-            isLoading = false
+            _uiState = _uiState.copy(
+                error = e.message ?: "Error loading file content",
+                currentFileContent = "",
+                isLoading = false
+            )
         }
     }
 
-    fun toggleFileSelection(file: FileItem) {
-        files = files.map {
+    private fun toggleFileSelection(file: FileItem) {
+        val updatedFiles = _uiState.files.map {
             if (it.path == file.path) it.copy(isSelected = !it.isSelected)
             else it
         }
+        _uiState = _uiState.copy(files = updatedFiles)
     }
 
-    fun addComment() {
-        if (currentComment.isNotBlank()) {
-            comments.add(CodeComment(currentFileName, currentComment))
-            currentComment = ""
+    private fun addComment() {
+        if (_uiState.currentComment.isNotBlank()) {
+            val updatedComments = _uiState.comments + CodeComment(
+                _uiState.currentFileName,
+                _uiState.currentComment
+            )
+            _uiState = _uiState.copy(
+                comments = updatedComments,
+                currentComment = ""
+            )
         }
     }
 
-    fun getSelectedFiles() = files.filter { it.isSelected }
+    fun getSelectedFiles() = _uiState.files.filter { it.isSelected }
 }
 
 // Main Activity
@@ -213,7 +276,7 @@ fun CodeReviewerApp() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SelectionScreen(navController: NavHostController, viewModel: CodeReviewViewModel) {
-    val scope = rememberCoroutineScope()
+    val uiState = viewModel.uiState
 
     Scaffold(
         topBar = {
@@ -234,22 +297,22 @@ fun SelectionScreen(navController: NavHostController, viewModel: CodeReviewViewM
         ) {
             // Input fields for repo info
             OutlinedTextField(
-                value = viewModel.owner,
-                onValueChange = { viewModel.owner = it },
+                value = uiState.owner,
+                onValueChange = { viewModel.onEvent(CodeReviewUiEvent.UpdateOwner(it)) },
                 label = { Text("Owner") },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
-                value = viewModel.repo,
-                onValueChange = { viewModel.repo = it },
+                value = uiState.repo,
+                onValueChange = { viewModel.onEvent(CodeReviewUiEvent.UpdateRepo(it)) },
                 label = { Text("Repositorio") },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
-                value = viewModel.branch,
-                onValueChange = { viewModel.branch = it },
+                value = uiState.branch,
+                onValueChange = { viewModel.onEvent(CodeReviewUiEvent.UpdateBranch(it)) },
                 label = { Text("Branch") },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -258,20 +321,18 @@ fun SelectionScreen(navController: NavHostController, viewModel: CodeReviewViewM
             // Load button
             Button(
                 onClick = {
-                    scope.launch {
-                        viewModel.loadFiles()
-                    }
+                    viewModel.onEvent(CodeReviewUiEvent.LoadFiles)
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !viewModel.isLoading
+                enabled = !uiState.isLoading
             ) {
-                Text(if (viewModel.isLoading) "Cargando..." else "Cargar Archivos")
+                Text(if (uiState.isLoading) "Cargando..." else "Cargar Archivos")
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             // Error message
-            viewModel.error?.let { error ->
+            uiState.error?.let { error ->
                 Text(
                     text = error,
                     color = MaterialTheme.colorScheme.error,
@@ -283,17 +344,17 @@ fun SelectionScreen(navController: NavHostController, viewModel: CodeReviewViewM
             LazyColumn(
                 modifier = Modifier.weight(1f)
             ) {
-                items(viewModel.files) { file ->
+                items(uiState.files) { file ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { viewModel.toggleFileSelection(file) }
+                            .clickable { viewModel.onEvent(CodeReviewUiEvent.ToggleFileSelection(file)) }
                             .padding(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Checkbox(
                             checked = file.isSelected,
-                            onCheckedChange = { viewModel.toggleFileSelection(file) }
+                            onCheckedChange = { viewModel.onEvent(CodeReviewUiEvent.ToggleFileSelection(file)) }
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(text = file.path)
@@ -321,13 +382,13 @@ fun SelectionScreen(navController: NavHostController, viewModel: CodeReviewViewM
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReviewScreen(navController: NavHostController, viewModel: CodeReviewViewModel) {
+    val uiState = viewModel.uiState
     val selectedFiles = viewModel.getSelectedFiles()
     var currentFileIndex by remember { mutableStateOf(0) }
-    val scope = rememberCoroutineScope()
 
     LaunchedEffect(currentFileIndex) {
         if (selectedFiles.isNotEmpty() && currentFileIndex < selectedFiles.size) {
-            viewModel.loadFileContent(selectedFiles[currentFileIndex])
+            viewModel.onEvent(CodeReviewUiEvent.LoadFileContent(selectedFiles[currentFileIndex]))
         }
     }
 
@@ -356,7 +417,7 @@ fun ReviewScreen(navController: NavHostController, viewModel: CodeReviewViewMode
             } else {
                 // File name
                 Text(
-                    text = viewModel.currentFileName,
+                    text = uiState.currentFileName,
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
@@ -377,7 +438,7 @@ fun ReviewScreen(navController: NavHostController, viewModel: CodeReviewViewMode
                         containerColor = Color(0xFF2B2B2B)
                     )
                 ) {
-                    if (viewModel.isLoading) {
+                    if (uiState.isLoading) {
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
@@ -385,7 +446,7 @@ fun ReviewScreen(navController: NavHostController, viewModel: CodeReviewViewMode
                             CircularProgressIndicator()
                         }
                     } else {
-                        SyntaxHighlightedCode(viewModel.currentFileContent)
+                        SyntaxHighlightedCode(uiState.currentFileContent)
                     }
                 }
 
@@ -393,8 +454,8 @@ fun ReviewScreen(navController: NavHostController, viewModel: CodeReviewViewMode
 
                 // Comment field
                 OutlinedTextField(
-                    value = viewModel.currentComment,
-                    onValueChange = { viewModel.currentComment = it },
+                    value = uiState.currentComment,
+                    onValueChange = { viewModel.onEvent(CodeReviewUiEvent.UpdateComment(it)) },
                     label = { Text("Comentario") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3
@@ -409,9 +470,9 @@ fun ReviewScreen(navController: NavHostController, viewModel: CodeReviewViewMode
                 ) {
                     Button(
                         onClick = {
-                            viewModel.addComment()
+                            viewModel.onEvent(CodeReviewUiEvent.AddComment)
                         },
-                        enabled = viewModel.currentComment.isNotBlank()
+                        enabled = uiState.currentComment.isNotBlank()
                     ) {
                         Text("Guardar Comentario")
                     }
@@ -504,6 +565,8 @@ fun SyntaxHighlightedCode(code: String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SummaryScreen(navController: NavHostController, viewModel: CodeReviewViewModel) {
+    val uiState = viewModel.uiState
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -521,7 +584,7 @@ fun SummaryScreen(navController: NavHostController, viewModel: CodeReviewViewMod
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
-            if (viewModel.comments.isEmpty()) {
+            if (uiState.comments.isEmpty()) {
                 Text(
                     text = "No hay comentarios guardados",
                     style = MaterialTheme.typography.bodyLarge,
@@ -531,7 +594,7 @@ fun SummaryScreen(navController: NavHostController, viewModel: CodeReviewViewMod
                 LazyColumn(
                     modifier = Modifier.weight(1f)
                 ) {
-                    items(viewModel.comments) { comment ->
+                    items(uiState.comments) { comment ->
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
