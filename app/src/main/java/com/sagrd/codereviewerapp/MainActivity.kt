@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,6 +25,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -31,6 +33,22 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Comment
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.NavigateBefore
+import androidx.compose.material.icons.filled.NavigateNext
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -40,10 +58,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -180,6 +200,12 @@ fun SelectionScreen(
                     enabled = !uiState.isLoadingBranches,
                     modifier = Modifier.height(56.dp)
                 ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Buscar",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(if (uiState.isLoadingBranches) "..." else "Buscar")
                 }
             }
@@ -190,6 +216,12 @@ fun SelectionScreen(
                 value = uiState.owner,
                 onValueChange = { viewModel.onEvent(CodeReviewUiEvent.UpdateOwner(it)) },
                 label = { Text("Owner") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Owner"
+                    )
+                },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -197,6 +229,12 @@ fun SelectionScreen(
                 value = uiState.repo,
                 onValueChange = { viewModel.onEvent(CodeReviewUiEvent.UpdateRepo(it)) },
                 label = { Text("Repositorio") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Storage,
+                        contentDescription = "Repositorio"
+                    )
+                },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -204,6 +242,12 @@ fun SelectionScreen(
                 value = uiState.branch,
                 onValueChange = { viewModel.onEvent(CodeReviewUiEvent.UpdateBranch(it)) },
                 label = { Text("Branch") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.AccountTree,
+                        contentDescription = "Branch"
+                    )
+                },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(16.dp))
@@ -216,6 +260,12 @@ fun SelectionScreen(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !uiState.isLoading
             ) {
+                Icon(
+                    imageVector = Icons.Default.CloudDownload,
+                    contentDescription = "Cargar archivos",
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(if (uiState.isLoading) "Cargando..." else "Cargar Archivos")
             }
 
@@ -223,11 +273,21 @@ fun SelectionScreen(
 
             // Error message
             uiState.error?.let { error ->
-                Text(
-                    text = error,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(8.dp)
-                )
+                Row(
+                    modifier = Modifier.padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Error,
+                        contentDescription = "Error",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        text = error,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
             }
 
             // Files list
@@ -235,32 +295,14 @@ fun SelectionScreen(
                 modifier = Modifier.weight(1f)
             ) {
                 items(uiState.files) { file ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                viewModel.onEvent(
-                                    CodeReviewUiEvent.ToggleFileSelection(
-                                        file
-                                    )
-                                )
-                            }
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked = file.isSelected,
-                            onCheckedChange = {
-                                viewModel.onEvent(
-                                    CodeReviewUiEvent.ToggleFileSelection(
-                                        file
-                                    )
-                                )
-                            }
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = file.path)
-                    }
+                    FileListItem(
+                        file = file,
+                        onToggleSelection = { 
+                            viewModel.onEvent(
+                                CodeReviewUiEvent.ToggleFileSelection(it)
+                            )
+                        }
+                    )
                     HorizontalDivider()
                 }
             }
@@ -276,6 +318,77 @@ fun SelectionScreen(
                 enabled = uiState.selectedFiles.isNotEmpty()
             ) {
                 Text("Siguiente (${uiState.selectedFiles.size} archivos)")
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    imageVector = Icons.Default.ArrowForward,
+                    contentDescription = "Siguiente",
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun FileListItem(
+    file: FileItem,
+    onToggleSelection: (FileItem) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    // Separate filename from directory path
+    val lastSlashIndex = file.path.lastIndexOf('/')
+    val directoryPath = if (lastSlashIndex > 0) file.path.substring(0, lastSlashIndex + 1) else ""
+    val fileName = if (lastSlashIndex >= 0) file.path.substring(lastSlashIndex + 1) else file.path
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onToggleSelection(file) }
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(
+            checked = file.isSelected,
+            onCheckedChange = { onToggleSelection(file) }
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            // Directory path - smaller and more subtle with folder icon
+            if (directoryPath.isNotEmpty()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Folder,
+                        contentDescription = "Folder",
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Text(
+                        text = directoryPath,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+            }
+            // Filename - bold and more visible with file icon
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.InsertDriveFile,
+                    contentDescription = "File",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = fileName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
     }
@@ -318,6 +431,12 @@ fun ReviewScreen(
             if (selectedFiles.isEmpty()) {
                 Text("No hay archivos seleccionados")
                 Button(onClick = { onNavigateBack() }) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Volver",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text("Volver")
                 }
             } else {
@@ -363,6 +482,12 @@ fun ReviewScreen(
                     value = uiState.currentComment,
                     onValueChange = { viewModel.onEvent(CodeReviewUiEvent.UpdateComment(it)) },
                     label = { Text("Comentario") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Comment,
+                            contentDescription = "Comentario"
+                        )
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3
                 )
@@ -380,6 +505,12 @@ fun ReviewScreen(
                         },
                         enabled = uiState.currentComment.isNotBlank()
                     ) {
+                        Icon(
+                            imageVector = Icons.Default.Save,
+                            contentDescription = "Guardar",
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text("Guardar Comentario")
                     }
 
@@ -389,6 +520,12 @@ fun ReviewScreen(
                                 onClick = { currentFileIndex-- },
                                 modifier = Modifier.padding(end = 8.dp)
                             ) {
+                                Icon(
+                                    imageVector = Icons.Default.NavigateBefore,
+                                    contentDescription = "Anterior",
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text("Anterior")
                             }
                         }
@@ -396,10 +533,22 @@ fun ReviewScreen(
                         if (currentFileIndex < selectedFiles.size - 1) {
                             Button(onClick = { currentFileIndex++ }) {
                                 Text("Siguiente")
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.NavigateNext,
+                                    contentDescription = "Siguiente",
+                                    modifier = Modifier.size(20.dp)
+                                )
                             }
                         } else {
                             Button(onClick = { onNavigateToSummary() }) {
                                 Text("Resumen")
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.ArrowForward,
+                                    contentDescription = "Resumen",
+                                    modifier = Modifier.size(20.dp)
+                                )
                             }
                         }
                     }
@@ -535,6 +684,12 @@ fun SummaryScreen(
                 onClick = { onNavigateToSelection() },
                 modifier = Modifier.fillMaxWidth()
             ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Nueva revisión",
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text("Nueva Revisión")
             }
         }
@@ -836,6 +991,186 @@ class CodeReviewViewModel : ViewModel() {
                 it.copy(
                     error = e.message ?: "Error al cargar branches",
                     isLoadingBranches = false
+                )
+            }
+        }
+    }
+}
+
+// Preview Functions
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun SelectionScreenPreview() {
+    CodeReviewerAppTheme {
+        SelectionScreen(
+            viewModel = object : CodeReviewViewModel() {
+                init {
+                    _uiState.value = CodeReviewUiState(
+                        repositoryUrl = "https://github.com/enelramon/CodeReviewerApp.git",
+                        owner = "enelramon",
+                        repo = "CodeReviewerApp",
+                        branch = "master",
+                        files = listOf(
+                            FileItem("app/src/main/java/com/sagrd/codereviewerapp/MainActivity.kt", "abc123", true),
+                            FileItem("app/src/main/java/com/sagrd/codereviewerapp/ui/theme/Theme.kt", "def456", false),
+                            FileItem("app/src/main/java/com/sagrd/codereviewerapp/ui/theme/Color.kt", "ghi789", true),
+                            FileItem("app/src/main/java/com/sagrd/codereviewerapp/ui/theme/Type.kt", "jkl012", false),
+                            FileItem("app/src/main/java/com/sagrd/codereviewerapp/navigation/Destinations.kt", "mno345", false)
+                        )
+                    )
+                }
+            },
+            onNavigateToReview = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun SelectionScreenWithErrorPreview() {
+    CodeReviewerAppTheme {
+        SelectionScreen(
+            viewModel = object : CodeReviewViewModel() {
+                init {
+                    _uiState.value = CodeReviewUiState(
+                        repositoryUrl = "https://github.com/enelramon/CodeReviewerApp.git",
+                        owner = "enelramon",
+                        repo = "CodeReviewerApp",
+                        branch = "master",
+                        error = "Error al cargar los archivos del repositorio"
+                    )
+                }
+            },
+            onNavigateToReview = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun ReviewScreenPreview() {
+    CodeReviewerAppTheme {
+        ReviewScreen(
+            viewModel = object : CodeReviewViewModel() {
+                init {
+                    _uiState.value = CodeReviewUiState(
+                        files = listOf(
+                            FileItem("app/src/main/java/com/sagrd/codereviewerapp/MainActivity.kt", "abc123", true),
+                            FileItem("app/src/main/java/com/sagrd/codereviewerapp/ui/theme/Theme.kt", "def456", true)
+                        ),
+                        currentFileName = "MainActivity.kt",
+                        currentFileContent = """
+                            package com.sagrd.codereviewerapp
+                            
+                            import android.os.Bundle
+                            import androidx.activity.ComponentActivity
+                            
+                            class MainActivity : ComponentActivity() {
+                                override fun onCreate(savedInstanceState: Bundle?) {
+                                    super.onCreate(savedInstanceState)
+                                    // Setup code here
+                                }
+                            }
+                        """.trimIndent(),
+                        currentComment = ""
+                    )
+                }
+            },
+            onNavigateToSummary = {},
+            onNavigateBack = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun ReviewScreenWithCommentPreview() {
+    CodeReviewerAppTheme {
+        ReviewScreen(
+            viewModel = object : CodeReviewViewModel() {
+                init {
+                    _uiState.value = CodeReviewUiState(
+                        files = listOf(
+                            FileItem("app/src/main/MainActivity.kt", "abc123", true),
+                            FileItem("app/src/ui/theme/Theme.kt", "def456", true)
+                        ),
+                        currentFileName = "MainActivity.kt",
+                        currentFileContent = """
+                            package com.sagrd.codereviewerapp
+                            
+                            class MainActivity : ComponentActivity() {
+                                override fun onCreate(savedInstanceState: Bundle?) {
+                                    super.onCreate(savedInstanceState)
+                                }
+                            }
+                        """.trimIndent(),
+                        currentComment = "Consider adding error handling here"
+                    )
+                }
+            },
+            onNavigateToSummary = {},
+            onNavigateBack = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun SummaryScreenPreview() {
+    CodeReviewerAppTheme {
+        SummaryScreen(
+            viewModel = object : CodeReviewViewModel() {
+                init {
+                    _uiState.value = CodeReviewUiState(
+                        comments = listOf(
+                            CodeComment("MainActivity.kt", "Great code structure! Consider extracting the ViewModel to a separate file."),
+                            CodeComment("Theme.kt", "The color scheme is well organized. Consider adding more color variants for different states."),
+                            CodeComment("Color.kt", "Good use of Material Design colors. Consider documenting the purpose of each color.")
+                        )
+                    )
+                }
+            },
+            onNavigateToSelection = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun SummaryScreenEmptyPreview() {
+    CodeReviewerAppTheme {
+        SummaryScreen(
+            viewModel = object : CodeReviewViewModel() {
+                init {
+                    _uiState.value = CodeReviewUiState(
+                        comments = emptyList()
+                    )
+                }
+            },
+            onNavigateToSelection = {}
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun FileListItemPreview() {
+    CodeReviewerAppTheme {
+        Surface {
+            Column {
+                FileListItem(
+                    file = FileItem("app/src/main/java/com/sagrd/codereviewerapp/MainActivity.kt", "abc123", false),
+                    onToggleSelection = {}
+                )
+                HorizontalDivider()
+                FileListItem(
+                    file = FileItem("app/src/main/java/com/sagrd/codereviewerapp/ui/theme/Theme.kt", "def456", true),
+                    onToggleSelection = {}
+                )
+                HorizontalDivider()
+                FileListItem(
+                    file = FileItem("MainActivity.kt", "ghi789", false),
+                    onToggleSelection = {}
                 )
             }
         }
