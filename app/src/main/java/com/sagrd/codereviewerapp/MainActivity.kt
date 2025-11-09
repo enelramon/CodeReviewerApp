@@ -159,6 +159,32 @@ fun SelectionScreen(
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
+            // Repository URL input with search button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = uiState.repositoryUrl,
+                    onValueChange = { viewModel.onEvent(CodeReviewUiEvent.UpdateRepositoryUrl(it)) },
+                    label = { Text("URL del Repositorio") },
+                    placeholder = { Text("https://github.com/owner/repo.git") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+                Button(
+                    onClick = {
+                        viewModel.onEvent(CodeReviewUiEvent.LoadBranches)
+                    },
+                    enabled = !uiState.isLoadingBranches,
+                    modifier = Modifier.height(56.dp)
+                ) {
+                    Text(if (uiState.isLoadingBranches) "..." else "Buscar")
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            
             // Input fields for repo info
             OutlinedTextField(
                 value = uiState.owner,
@@ -534,6 +560,17 @@ data class GitHubBlob(
     val encoding: String
 )
 
+@Serializable
+data class GitHubBranch(
+    val name: String,
+    val commit: GitHubCommit
+)
+
+@Serializable
+data class GitHubCommit(
+    val sha: String
+)
+
 data class FileItem(
     val path: String,
     val sha: String,
@@ -547,9 +584,12 @@ data class CodeComment(
 
 // UI State
 data class CodeReviewUiState(
-    val owner: String = "Daniel20051601",
-    val repo: String = "Ramon_Lopez_AP2_P2",
+    val repositoryUrl: String = "https://github.com/enelramon/CodeReviewerApp.git",
+    val owner: String = "enelramon",
+    val repo: String = "CodeReviewerApp",
     val branch: String = "master",
+    val branches: List<String> = emptyList(),
+    val isLoadingBranches: Boolean = false,
     val files: List<FileItem> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
@@ -564,9 +604,11 @@ data class CodeReviewUiState(
 
 // UI Events
 sealed interface CodeReviewUiEvent {
+    data class UpdateRepositoryUrl(val url: String) : CodeReviewUiEvent
     data class UpdateOwner(val owner: String) : CodeReviewUiEvent
     data class UpdateRepo(val repo: String) : CodeReviewUiEvent
     data class UpdateBranch(val branch: String) : CodeReviewUiEvent
+    data object LoadBranches : CodeReviewUiEvent
     data object LoadFiles : CodeReviewUiEvent
     data class ToggleFileSelection(val file: FileItem) : CodeReviewUiEvent
     data class LoadFileContent(val file: FileItem) : CodeReviewUiEvent
@@ -590,6 +632,12 @@ interface GitHubApi {
         @Path("repo") repo: String,
         @Path("sha") sha: String
     ): GitHubBlob
+
+    @GET("repos/{owner}/{repo}/branches")
+    suspend fun getBranches(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String
+    ): List<GitHubBranch>
 }
 
 // ViewModel
@@ -612,6 +660,10 @@ class CodeReviewViewModel : ViewModel() {
 
     fun onEvent(event: CodeReviewUiEvent) {
         when (event) {
+            is CodeReviewUiEvent.UpdateRepositoryUrl -> {
+                _uiState.update { it.copy(repositoryUrl = event.url) }
+                parseGitHubUrl(event.url)
+            }
             is CodeReviewUiEvent.UpdateOwner -> {
                 _uiState.update { it.copy(owner = event.owner) }
             }
@@ -620,6 +672,11 @@ class CodeReviewViewModel : ViewModel() {
             }
             is CodeReviewUiEvent.UpdateBranch -> {
                 _uiState.update { it.copy(branch = event.branch) }
+            }
+            is CodeReviewUiEvent.LoadBranches -> {
+                viewModelScope.launch {
+                    loadBranches()
+                }
             }
             is CodeReviewUiEvent.LoadFiles -> {
                 // Launch a coroutine to perform the suspend operation
@@ -721,6 +778,65 @@ class CodeReviewViewModel : ViewModel() {
                 )
             } else {
                 currentState
+            }
+        }
+    }
+
+    private fun parseGitHubUrl(url: String) {
+        // Parse GitHub URL to extract owner and repo
+        // Supports formats: 
+        // - https://github.com/owner/repo
+        // - https://github.com/owner/repo.git
+        // - github.com/owner/repo
+        val regex = Regex("""(?:https?://)?(?:www\.)?github\.com/([^/]+)/([^/\.]+)(?:\.git)?""")
+        val matchResult = regex.find(url)
+        
+        if (matchResult != null) {
+            val (owner, repo) = matchResult.destructured
+            _uiState.update { 
+                it.copy(
+                    owner = owner,
+                    repo = repo
+                ) 
+            }
+        }
+    }
+
+    private suspend fun loadBranches() {
+        val owner = _uiState.value.owner
+        val repo = _uiState.value.repo
+        
+        if (owner.isBlank() || repo.isBlank()) {
+            _uiState.update { 
+                it.copy(error = "Owner y Repo son requeridos para buscar branches") 
+            }
+            return
+        }
+        
+        _uiState.update { it.copy(isLoadingBranches = true, error = null) }
+        try {
+            val branchesList = withContext(Dispatchers.IO) {
+                api.getBranches(owner, repo)
+            }
+            val branchNames = branchesList.map { it.name }
+            _uiState.update { 
+                it.copy(
+                    branches = branchNames,
+                    isLoadingBranches = false,
+                    // Set first branch as default if current branch is not in the list
+                    branch = if (branchNames.isNotEmpty() && !branchNames.contains(it.branch)) {
+                        branchNames.first()
+                    } else {
+                        it.branch
+                    }
+                ) 
+            }
+        } catch (e: Exception) {
+            _uiState.update {
+                it.copy(
+                    error = e.message ?: "Error al cargar branches",
+                    isLoadingBranches = false
+                )
             }
         }
     }
