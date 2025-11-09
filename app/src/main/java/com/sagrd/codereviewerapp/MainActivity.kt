@@ -34,8 +34,21 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Comment
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.NavigateBefore
+import androidx.compose.material.icons.filled.NavigateNext
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -186,6 +199,12 @@ fun SelectionScreen(
                     enabled = !uiState.isLoadingBranches,
                     modifier = Modifier.height(56.dp)
                 ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Buscar",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(if (uiState.isLoadingBranches) "..." else "Buscar")
                 }
             }
@@ -196,6 +215,12 @@ fun SelectionScreen(
                 value = uiState.owner,
                 onValueChange = { viewModel.onEvent(CodeReviewUiEvent.UpdateOwner(it)) },
                 label = { Text("Owner") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Owner"
+                    )
+                },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -203,6 +228,12 @@ fun SelectionScreen(
                 value = uiState.repo,
                 onValueChange = { viewModel.onEvent(CodeReviewUiEvent.UpdateRepo(it)) },
                 label = { Text("Repositorio") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Storage,
+                        contentDescription = "Repositorio"
+                    )
+                },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -210,6 +241,12 @@ fun SelectionScreen(
                 value = uiState.branch,
                 onValueChange = { viewModel.onEvent(CodeReviewUiEvent.UpdateBranch(it)) },
                 label = { Text("Branch") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.AccountTree,
+                        contentDescription = "Branch"
+                    )
+                },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(16.dp))
@@ -222,6 +259,12 @@ fun SelectionScreen(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !uiState.isLoading
             ) {
+                Icon(
+                    imageVector = Icons.Default.CloudDownload,
+                    contentDescription = "Cargar archivos",
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(if (uiState.isLoading) "Cargando..." else "Cargar Archivos")
             }
 
@@ -229,11 +272,21 @@ fun SelectionScreen(
 
             // Error message
             uiState.error?.let { error ->
-                Text(
-                    text = error,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(8.dp)
-                )
+                Row(
+                    modifier = Modifier.padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Error,
+                        contentDescription = "Error",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        text = error,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
             }
 
             // Files list
@@ -264,6 +317,12 @@ fun SelectionScreen(
                 enabled = uiState.selectedFiles.isNotEmpty()
             ) {
                 Text("Siguiente (${uiState.selectedFiles.size} archivos)")
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    imageVector = Icons.Default.ArrowForward,
+                    contentDescription = "Siguiente",
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }
@@ -371,6 +430,12 @@ fun ReviewScreen(
             if (selectedFiles.isEmpty()) {
                 Text("No hay archivos seleccionados")
                 Button(onClick = { onNavigateBack() }) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Volver",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text("Volver")
                 }
             } else {
@@ -416,6 +481,12 @@ fun ReviewScreen(
                     value = uiState.currentComment,
                     onValueChange = { viewModel.onEvent(CodeReviewUiEvent.UpdateComment(it)) },
                     label = { Text("Comentario") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Comment,
+                            contentDescription = "Comentario"
+                        )
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3
                 )
@@ -433,6 +504,12 @@ fun ReviewScreen(
                         },
                         enabled = uiState.currentComment.isNotBlank()
                     ) {
+                        Icon(
+                            imageVector = Icons.Default.Save,
+                            contentDescription = "Guardar",
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text("Guardar Comentario")
                     }
 
@@ -442,6 +519,12 @@ fun ReviewScreen(
                                 onClick = { currentFileIndex-- },
                                 modifier = Modifier.padding(end = 8.dp)
                             ) {
+                                Icon(
+                                    imageVector = Icons.Default.NavigateBefore,
+                                    contentDescription = "Anterior",
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text("Anterior")
                             }
                         }
@@ -449,10 +532,22 @@ fun ReviewScreen(
                         if (currentFileIndex < selectedFiles.size - 1) {
                             Button(onClick = { currentFileIndex++ }) {
                                 Text("Siguiente")
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.NavigateNext,
+                                    contentDescription = "Siguiente",
+                                    modifier = Modifier.size(20.dp)
+                                )
                             }
                         } else {
                             Button(onClick = { onNavigateToSummary() }) {
                                 Text("Resumen")
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.ArrowForward,
+                                    contentDescription = "Resumen",
+                                    modifier = Modifier.size(20.dp)
+                                )
                             }
                         }
                     }
@@ -588,6 +683,12 @@ fun SummaryScreen(
                 onClick = { onNavigateToSelection() },
                 modifier = Modifier.fillMaxWidth()
             ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Nueva revisión",
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text("Nueva Revisión")
             }
         }
