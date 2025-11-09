@@ -32,11 +32,12 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import com.sagrd.codereviewerapp.navigation.Destinations
 import com.sagrd.codereviewerapp.ui.theme.CodeReviewerAppTheme
 import dev.snipme.highlights.Highlights
 import dev.snipme.highlights.model.BoldHighlight
@@ -85,15 +86,33 @@ fun CodeReviewerApp() {
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
-        NavHost(navController = navController, startDestination = "selection") {
-            composable("selection") {
-                SelectionScreen(navController, viewModel)
+        NavHost(navController = navController, startDestination = Destinations.Selection) {
+            composable<Destinations.Selection> {
+                SelectionScreen(
+                    viewModel = viewModel,
+                    onNavigateToReview = {
+                        navController.navigate(Destinations.Review)
+                    }
+                )
             }
-            composable("review") {
-                ReviewScreen(navController, viewModel)
+            composable<Destinations.Review> {
+                ReviewScreen(
+                    viewModel = viewModel,
+                    onNavigateToSummary = {
+                        navController.navigate(Destinations.Summary)
+                    },
+                    onNavigateBack = {
+                        navController.popBackStack()
+                    }
+                )
             }
-            composable("summary") {
-                SummaryScreen(navController, viewModel)
+            composable<Destinations.Summary> {
+                SummaryScreen(
+                    viewModel = viewModel,
+                    onNavigateToSelection = {
+                        navController.navigate(Destinations.Selection)
+                    }
+                )
             }
         }
     }
@@ -102,8 +121,8 @@ fun CodeReviewerApp() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SelectionScreen(
-    navController: NavHostController,
-    viewModel: CodeReviewViewModel
+    viewModel: CodeReviewViewModel,
+    onNavigateToReview: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -208,7 +227,7 @@ fun SelectionScreen(
             Button(
                 onClick = {
                     if (uiState.selectedFiles.isNotEmpty()) {
-                        navController.navigate("review")
+                        onNavigateToReview()
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -223,8 +242,9 @@ fun SelectionScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReviewScreen(
-    navController: NavHostController,
-    viewModel: CodeReviewViewModel
+    viewModel: CodeReviewViewModel,
+    onNavigateToSummary: () -> Unit,
+    onNavigateBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val selectedFiles = uiState.selectedFiles
@@ -255,7 +275,7 @@ fun ReviewScreen(
         ) {
             if (selectedFiles.isEmpty()) {
                 Text("No hay archivos seleccionados")
-                Button(onClick = { navController.popBackStack() }) {
+                Button(onClick = { onNavigateBack() }) {
                     Text("Volver")
                 }
             } else {
@@ -336,7 +356,7 @@ fun ReviewScreen(
                                 Text("Siguiente")
                             }
                         } else {
-                            Button(onClick = { navController.navigate("summary") }) {
+                            Button(onClick = { onNavigateToSummary() }) {
                                 Text("Resumen")
                             }
                         }
@@ -409,8 +429,8 @@ fun SyntaxHighlightedCode(code: String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SummaryScreen(
-    navController: NavHostController,
-    viewModel: CodeReviewViewModel
+    viewModel: CodeReviewViewModel,
+    onNavigateToSelection: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -470,7 +490,7 @@ fun SummaryScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
-                onClick = { navController.navigate("selection") },
+                onClick = { onNavigateToSelection() },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Nueva Revisión")
