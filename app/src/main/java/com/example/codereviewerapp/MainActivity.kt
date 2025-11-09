@@ -34,11 +34,13 @@ import dev.snipme.highlights.model.BoldHighlight
 import dev.snipme.highlights.model.ColorHighlight
 import dev.snipme.highlights.model.SyntaxLanguage
 import dev.snipme.highlights.model.SyntaxThemes
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -92,7 +94,10 @@ data class CodeReviewUiState(
     val currentFileName: String = "",
     val currentComment: String = "",
     val comments: List<CodeComment> = emptyList()
-)
+) {
+    val selectedFiles: List<FileItem>
+        get() = files.filter { it.isSelected }
+}
 
 // UI Events
 sealed interface CodeReviewUiEvent {
@@ -178,7 +183,9 @@ class CodeReviewViewModel : ViewModel() {
         val branch = _uiState.value.branch
         _uiState.update { it.copy(isLoading = true, error = null) }
         try {
-            val tree = api.getTree(owner, repo, branch, 1)
+            val tree = withContext(Dispatchers.IO) {
+                api.getTree(owner, repo, branch, 1)
+            }
             val filesList = tree.tree
                 .filter { it.type == "blob" && it.path.endsWith(".kt") }
                 .map { FileItem(it.path, it.sha) }
@@ -204,7 +211,9 @@ class CodeReviewViewModel : ViewModel() {
             )
         }
         try {
-            val blob = api.getBlob(owner, repo, file.sha)
+            val blob = withContext(Dispatchers.IO) {
+                api.getBlob(owner, repo, file.sha)
+            }
             val decoded = if (blob.encoding == "base64") {
                 String(Base64.getDecoder().decode(blob.content))
             } else {
@@ -248,8 +257,6 @@ class CodeReviewViewModel : ViewModel() {
             }
         }
     }
-
-    fun getSelectedFiles() = _uiState.value.files.filter { it.isSelected }
 }
 
 // Main Activity
@@ -386,14 +393,14 @@ fun SelectionScreen(navController: NavHostController, viewModel: CodeReviewViewM
             // Next button
             Button(
                 onClick = {
-                    if (viewModel.getSelectedFiles().isNotEmpty()) {
+                    if (uiState.selectedFiles.isNotEmpty()) {
                         navController.navigate("review")
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = viewModel.getSelectedFiles().isNotEmpty()
+                enabled = uiState.selectedFiles.isNotEmpty()
             ) {
-                Text("Siguiente (${viewModel.getSelectedFiles().size} archivos)")
+                Text("Siguiente (${uiState.selectedFiles.size} archivos)")
             }
         }
     }
@@ -403,7 +410,7 @@ fun SelectionScreen(navController: NavHostController, viewModel: CodeReviewViewM
 @Composable
 fun ReviewScreen(navController: NavHostController, viewModel: CodeReviewViewModel) {
     val uiState by viewModel.uiState.collectAsState()
-    val selectedFiles = viewModel.getSelectedFiles()
+    val selectedFiles = uiState.selectedFiles
     var currentFileIndex by remember { mutableStateOf(0) }
 
     LaunchedEffect(currentFileIndex) {
