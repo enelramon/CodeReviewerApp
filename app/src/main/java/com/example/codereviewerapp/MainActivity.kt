@@ -34,6 +34,10 @@ import dev.snipme.highlights.model.BoldHighlight
 import dev.snipme.highlights.model.ColorHighlight
 import dev.snipme.highlights.model.SyntaxLanguage
 import dev.snipme.highlights.model.SyntaxThemes
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -131,23 +135,22 @@ class CodeReviewViewModel : ViewModel() {
 
     private val api = retrofit.create(GitHubApi::class.java)
 
-    private var _uiState by mutableStateOf(CodeReviewUiState())
-    val uiState: CodeReviewUiState
-        get() = _uiState
+    private val _uiState = MutableStateFlow(CodeReviewUiState())
+    val uiState: StateFlow<CodeReviewUiState> = _uiState.asStateFlow()
 
     fun onEvent(event: CodeReviewUiEvent) {
         when (event) {
             is CodeReviewUiEvent.UpdateOwner -> {
-                _uiState = _uiState.copy(owner = event.owner)
+                _uiState.update { it.copy(owner = event.owner) }
             }
             is CodeReviewUiEvent.UpdateRepo -> {
-                _uiState = _uiState.copy(repo = event.repo)
+                _uiState.update { it.copy(repo = event.repo) }
             }
             is CodeReviewUiEvent.UpdateBranch -> {
-                _uiState = _uiState.copy(branch = event.branch)
+                _uiState.update { it.copy(branch = event.branch) }
             }
             is CodeReviewUiEvent.LoadFiles -> {
-                // This will be called from a coroutine scope
+                // Launch a coroutine to perform the suspend operation
                 viewModelScope.launch {
                     loadFiles()
                 }
@@ -161,7 +164,7 @@ class CodeReviewViewModel : ViewModel() {
                 }
             }
             is CodeReviewUiEvent.UpdateComment -> {
-                _uiState = _uiState.copy(currentComment = event.comment)
+                _uiState.update { it.copy(currentComment = event.comment) }
             }
             is CodeReviewUiEvent.AddComment -> {
                 addComment()
@@ -170,66 +173,83 @@ class CodeReviewViewModel : ViewModel() {
     }
 
     private suspend fun loadFiles() {
-        _uiState = _uiState.copy(isLoading = true, error = null)
+        val owner = _uiState.value.owner
+        val repo = _uiState.value.repo
+        val branch = _uiState.value.branch
+        _uiState.update { it.copy(isLoading = true, error = null) }
         try {
-            val tree = api.getTree(_uiState.owner, _uiState.repo, _uiState.branch, 1)
+            val tree = api.getTree(owner, repo, branch, 1)
             val filesList = tree.tree
                 .filter { it.type == "blob" && it.path.endsWith(".kt") }
                 .map { FileItem(it.path, it.sha) }
-            _uiState = _uiState.copy(files = filesList, isLoading = false)
+            _uiState.update { it.copy(files = filesList, isLoading = false) }
         } catch (e: Exception) {
-            _uiState = _uiState.copy(
-                error = e.message ?: "Error loading files",
-                isLoading = false
-            )
+            _uiState.update {
+                it.copy(
+                    error = e.message ?: "Error loading files",
+                    isLoading = false
+                )
+            }
         }
     }
 
     private suspend fun loadFileContent(file: FileItem) {
-        _uiState = _uiState.copy(
-            isLoading = true,
-            error = null,
-            currentFileName = file.path
-        )
+        val owner = _uiState.value.owner
+        val repo = _uiState.value.repo
+        _uiState.update {
+            it.copy(
+                isLoading = true,
+                error = null,
+                currentFileName = file.path
+            )
+        }
         try {
-            val blob = api.getBlob(_uiState.owner, _uiState.repo, file.sha)
+            val blob = api.getBlob(owner, repo, file.sha)
             val decoded = if (blob.encoding == "base64") {
                 String(Base64.getDecoder().decode(blob.content))
             } else {
                 blob.content
             }
-            _uiState = _uiState.copy(currentFileContent = decoded, isLoading = false)
+            _uiState.update { it.copy(currentFileContent = decoded, isLoading = false) }
         } catch (e: Exception) {
-            _uiState = _uiState.copy(
-                error = e.message ?: "Error loading file content",
-                currentFileContent = "",
-                isLoading = false
-            )
+            _uiState.update {
+                it.copy(
+                    error = e.message ?: "Error loading file content",
+                    currentFileContent = "",
+                    isLoading = false
+                )
+            }
         }
     }
 
     private fun toggleFileSelection(file: FileItem) {
-        val updatedFiles = _uiState.files.map {
-            if (it.path == file.path) it.copy(isSelected = !it.isSelected)
-            else it
+        _uiState.update { currentState ->
+            val updatedFiles = currentState.files.map {
+                if (it.path == file.path) it.copy(isSelected = !it.isSelected)
+                else it
+            }
+            currentState.copy(files = updatedFiles)
         }
-        _uiState = _uiState.copy(files = updatedFiles)
     }
 
     private fun addComment() {
-        if (_uiState.currentComment.isNotBlank()) {
-            val updatedComments = _uiState.comments + CodeComment(
-                _uiState.currentFileName,
-                _uiState.currentComment
-            )
-            _uiState = _uiState.copy(
-                comments = updatedComments,
-                currentComment = ""
-            )
+        _uiState.update { currentState ->
+            if (currentState.currentComment.isNotBlank()) {
+                val updatedComments = currentState.comments + CodeComment(
+                    currentState.currentFileName,
+                    currentState.currentComment
+                )
+                currentState.copy(
+                    comments = updatedComments,
+                    currentComment = ""
+                )
+            } else {
+                currentState
+            }
         }
     }
 
-    fun getSelectedFiles() = _uiState.files.filter { it.isSelected }
+    fun getSelectedFiles() = _uiState.value.files.filter { it.isSelected }
 }
 
 // Main Activity
@@ -276,7 +296,7 @@ fun CodeReviewerApp() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SelectionScreen(navController: NavHostController, viewModel: CodeReviewViewModel) {
-    val uiState = viewModel.uiState
+    val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
         topBar = {
@@ -382,7 +402,7 @@ fun SelectionScreen(navController: NavHostController, viewModel: CodeReviewViewM
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReviewScreen(navController: NavHostController, viewModel: CodeReviewViewModel) {
-    val uiState = viewModel.uiState
+    val uiState by viewModel.uiState.collectAsState()
     val selectedFiles = viewModel.getSelectedFiles()
     var currentFileIndex by remember { mutableStateOf(0) }
 
@@ -565,7 +585,7 @@ fun SyntaxHighlightedCode(code: String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SummaryScreen(navController: NavHostController, viewModel: CodeReviewViewModel) {
-    val uiState = viewModel.uiState
+    val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
         topBar = {
