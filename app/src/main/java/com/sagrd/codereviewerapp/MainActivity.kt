@@ -547,9 +547,9 @@ data class CodeComment(
 
 // UI State
 data class CodeReviewUiState(
-    val owner: String = "google",
-    val repo: String = "gson",
-    val branch: String = "main",
+    val owner: String = "Daniel20051601",
+    val repo: String = "Ramon_Lopez_AP2_P2",
+    val branch: String = "master",
     val files: List<FileItem> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
