@@ -600,9 +600,11 @@ fun SyntaxHighlightedCode(code: String) {
     val annotatedString = buildAnnotatedString {
         var lastIndex = 0
         highlights.getHighlights().forEach { highlight ->
-            // Add text before highlight
+            // Add text before highlight with default color
             if (highlight.location.start > lastIndex) {
-                append(code.substring(lastIndex, highlight.location.start))
+                withStyle(SpanStyle(color = Color.White)) {
+                    append(code.substring(lastIndex, highlight.location.start))
+                }
             }
 
             // Add highlighted text
@@ -623,9 +625,11 @@ fun SyntaxHighlightedCode(code: String) {
             lastIndex = highlight.location.end
         }
 
-        // Add remaining text
+        // Add remaining text with default color
         if (lastIndex < code.length) {
-            append(code.substring(lastIndex))
+            withStyle(SpanStyle(color = Color.White)) {
+                append(code.substring(lastIndex))
+            }
         }
     }
 
@@ -639,7 +643,6 @@ fun SyntaxHighlightedCode(code: String) {
                 text = annotatedString,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 12.sp,
-                color = Color.White,
                 lineHeight = 18.sp
             )
         }
