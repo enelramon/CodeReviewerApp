@@ -166,7 +166,7 @@ fun CodeReviewerApp() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SelectionScreen(
     viewModel: CodeReviewViewModel,
@@ -251,59 +251,14 @@ fun SelectionScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             
-            // Branch selection with toggle buttons
-            if (uiState.branches.isNotEmpty()) {
-                Text(
-                    text = "Seleccionar Branch",
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                FlowRow(
-                    modifier = Modifier
-                        .padding(horizontal = 8.dp)
-                        .fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    uiState.branches.forEachIndexed { index, branchName ->
-                        ToggleButton(
-                            checked = uiState.branch == branchName,
-                            onCheckedChange = { 
-                                viewModel.onEvent(CodeReviewUiEvent.UpdateBranch(branchName))
-                            },
-                            shapes = when (index) {
-                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                                uiState.branches.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                            },
-                            modifier = Modifier.semantics { role = Role.RadioButton },
-                        ) {
-                            Icon(
-                                imageVector = if (uiState.branch == branchName) 
-                                    Icons.Filled.AccountTree 
-                                else 
-                                    Icons.Outlined.AccountTree,
-                                contentDescription = "Branch",
-                            )
-                            Spacer(Modifier.size(ToggleButtonDefaults.IconSpacing))
-                            Text(branchName)
-                        }
-                    }
+            // Branch selection
+            BranchSelector(
+                branches = uiState.branches,
+                selectedBranch = uiState.branch,
+                onBranchSelected = { branchName ->
+                    viewModel.onEvent(CodeReviewUiEvent.UpdateBranch(branchName))
                 }
-            } else {
-                OutlinedTextField(
-                    value = uiState.branch,
-                    onValueChange = { viewModel.onEvent(CodeReviewUiEvent.UpdateBranch(it)) },
-                    label = { Text("Branch") },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.AccountTree,
-                            contentDescription = "Branch"
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+            )
             Spacer(modifier = Modifier.height(16.dp))
 
             // Load button
@@ -380,6 +335,68 @@ fun SelectionScreen(
                 )
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun BranchSelector(
+    branches: List<String>,
+    selectedBranch: String,
+    onBranchSelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (branches.isNotEmpty()) {
+        Text(
+            text = "Seleccionar Branch",
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        FlowRow(
+            modifier = modifier
+                .padding(horizontal = 8.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            branches.forEachIndexed { index, branchName ->
+                ToggleButton(
+                    checked = selectedBranch == branchName,
+                    onCheckedChange = { 
+                        onBranchSelected(branchName)
+                    },
+                    shapes = when (index) {
+                        0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                        branches.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                        else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                    },
+                    modifier = Modifier.semantics { role = Role.RadioButton },
+                ) {
+                    Icon(
+                        imageVector = if (selectedBranch == branchName) 
+                            Icons.Filled.AccountTree 
+                        else 
+                            Icons.Outlined.AccountTree,
+                        contentDescription = "Branch",
+                    )
+                    Spacer(Modifier.size(ToggleButtonDefaults.IconSpacing))
+                    Text(branchName)
+                }
+            }
+        }
+    } else {
+        OutlinedTextField(
+            value = selectedBranch,
+            onValueChange = onBranchSelected,
+            label = { Text("Branch") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.AccountTree,
+                    contentDescription = "Branch"
+                )
+            },
+            modifier = modifier.fillMaxWidth()
+        )
     }
 }
 
