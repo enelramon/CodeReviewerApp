@@ -1,6 +1,7 @@
 package com.sagrd.codereviewerapp
 
 import android.os.Bundle
+import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -30,6 +31,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -53,6 +55,7 @@ import androidx.compose.material.icons.filled.NavigateBefore
 import androidx.compose.material.icons.filled.NavigateNext
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Storage
@@ -68,6 +71,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -536,7 +540,7 @@ fun ReviewScreen(
                         .weight(1f)
                         .fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = Color.White
+                        containerColor = MaterialTheme.colorScheme.surface
                     )
                 ) {
                     if (uiState.isLoading) {
@@ -594,7 +598,15 @@ fun ReviewScreen(
 
                         Button(
                             onClick = {
+                                // Guardar comentario y avanzar automáticamente
                                 viewModel.onEvent(CodeReviewUiEvent.AddComment)
+                                if (uiState.currentComment.isNotBlank()) {
+                                    if (currentFileIndex < selectedFiles.size - 1) {
+                                        currentFileIndex++
+                                    } else {
+                                        onNavigateToSummary()
+                                    }
+                                }
                             },
                             enabled = uiState.currentComment.isNotBlank()
                         ) {
@@ -674,14 +686,48 @@ fun SummaryScreen(
     onNavigateToSelection: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+
+    fun shareComments() {
+        if (uiState.comments.isEmpty()) return
+        val shareText = buildString {
+            appendLine("Resumen de Comentarios de Revisión")
+            appendLine("--------------------------------")
+            uiState.comments.forEachIndexed { index, c ->
+                appendLine("${index + 1}. Archivo: ${c.fileName}")
+                appendLine("   Comentario: ${c.comment}")
+                appendLine()
+            }
+        }
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, "Revisión de Código: ${uiState.comments.size} comentarios")
+            putExtra(Intent.EXTRA_TEXT, shareText)
+        }
+        context.startActivity(Intent.createChooser(intent, "Compartir comentarios"))
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Resumen de Comentarios") },
+                actions = {
+                    if (uiState.comments.isNotEmpty()) {
+                        IconButton(onClick = { shareComments() }) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = "Compartir comentarios",
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = Color.White
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
         }
