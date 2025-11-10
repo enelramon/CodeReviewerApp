@@ -854,7 +854,7 @@ class CodeReviewViewModel : ViewModel() {
 
     private val generativeModel = if (geminiApiKey.isNotBlank()) {
         GenerativeModel(
-            modelName = "gemini-pro",
+            modelName = "gemini-flash-latest",
             apiKey = geminiApiKey,
             generationConfig = generationConfig {
                 temperature = 0.7f
