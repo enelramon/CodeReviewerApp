@@ -76,7 +76,7 @@ dependencies {
     implementation(libs.okhttp.logging.interceptor)
 
     // Syntax Highlighting
-    implementation(libs.highlights)
+    implementation("dev.snipme:kodeview:0.9.0")
 
     // Gemini AI
     implementation(libs.generativeai)

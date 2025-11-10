@@ -61,6 +61,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -70,11 +71,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -90,10 +88,9 @@ import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFact
 import com.sagrd.codereviewerapp.navigation.Destinations
 import com.sagrd.codereviewerapp.ui.theme.CodeReviewerAppTheme
 import dev.snipme.highlights.Highlights
-import dev.snipme.highlights.model.BoldHighlight
-import dev.snipme.highlights.model.ColorHighlight
 import dev.snipme.highlights.model.SyntaxLanguage
 import dev.snipme.highlights.model.SyntaxThemes
+import dev.snipme.kodeview.view.CodeTextView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -482,7 +479,7 @@ fun ReviewScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val selectedFiles = uiState.selectedFiles
-    var currentFileIndex by remember { mutableStateOf(0) }
+    var currentFileIndex by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(currentFileIndex) {
         if (selectedFiles.isNotEmpty() && currentFileIndex < selectedFiles.size) {
@@ -539,7 +536,7 @@ fun ReviewScreen(
                         .weight(1f)
                         .fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFF2B2B2B)
+                        containerColor = Color.White
                     )
                 ) {
                     if (uiState.isLoading) {
@@ -561,12 +558,6 @@ fun ReviewScreen(
                     value = uiState.currentComment,
                     onValueChange = { viewModel.onEvent(CodeReviewUiEvent.UpdateComment(it)) },
                     label = { Text("Comentario") },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Comment,
-                            contentDescription = "Comentario"
-                        )
-                    },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3
                 )
@@ -599,8 +590,6 @@ fun ReviewScreen(
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(if (uiState.isSuggesting) "Sugiriendo..." else "Sugerir")
                         }
 
                         Button(
@@ -614,8 +603,6 @@ fun ReviewScreen(
                                 contentDescription = "Guardar",
                                 modifier = Modifier.size(20.dp)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Guardar")
                         }
                     }
 
@@ -630,15 +617,11 @@ fun ReviewScreen(
                                     contentDescription = "Anterior",
                                     modifier = Modifier.size(20.dp)
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Anterior")
                             }
                         }
 
                         if (currentFileIndex < selectedFiles.size - 1) {
                             Button(onClick = { currentFileIndex++ }) {
-                                Text("Siguiente")
-                                Spacer(modifier = Modifier.width(4.dp))
                                 Icon(
                                     imageVector = Icons.Default.NavigateNext,
                                     contentDescription = "Siguiente",
@@ -666,62 +649,21 @@ fun ReviewScreen(
 @Composable
 fun SyntaxHighlightedCode(code: String) {
     val highlights = remember(code) {
-        Highlights.Builder()
-            .code(code)
-            .theme(SyntaxThemes.darcula())
-            .language(SyntaxLanguage.KOTLIN)
-            .build()
+        mutableStateOf(
+            Highlights
+                .Builder(code = code)
+                .theme(SyntaxThemes.atom())
+                .language(SyntaxLanguage.KOTLIN)
+                .build()
+        )
     }
 
-    val annotatedString = buildAnnotatedString {
-        var lastIndex = 0
-        highlights.getHighlights().forEach { highlight ->
-            // Add text before highlight with default color
-            if (highlight.location.start > lastIndex) {
-                withStyle(SpanStyle(color = Color.White)) {
-                    append(code.substring(lastIndex, highlight.location.start))
-                }
-            }
-
-            // Add highlighted text
-            val text = code.substring(highlight.location.start, highlight.location.end)
-            when (highlight) {
-                is ColorHighlight -> {
-                    withStyle(SpanStyle(color = Color(0xFF000000L or highlight.rgb.toLong()))) {
-                        append(text)
-                    }
-                }
-
-                is BoldHighlight -> {
-                    withStyle(SpanStyle(fontFamily = FontFamily.Monospace)) {
-                        append(text)
-                    }
-                }
-            }
-            lastIndex = highlight.location.end
-        }
-
-        // Add remaining text with default color
-        if (lastIndex < code.length) {
-            withStyle(SpanStyle(color = Color.White)) {
-                append(code.substring(lastIndex))
-            }
-        }
-    }
-
-    LazyColumn(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        item {
-            Text(
-                text = annotatedString,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp,
-                lineHeight = 18.sp
-            )
-        }
+        CodeTextView(highlights = highlights.value)
     }
 }
 
