@@ -8,7 +8,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,7 +17,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.Card
@@ -65,7 +66,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -83,6 +83,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.google.ai.client.generativeai.GenerativeModel
+import com.google.ai.client.generativeai.type.generationConfig
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import com.sagrd.codereviewerapp.navigation.Destinations
 import com.sagrd.codereviewerapp.ui.theme.CodeReviewerAppTheme
@@ -108,8 +110,6 @@ import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
 import java.util.Base64
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.generationConfig
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -347,40 +347,34 @@ fun BranchSelector(
     modifier: Modifier = Modifier
 ) {
     if (branches.isNotEmpty()) {
-        Text(
-            text = "Seleccionar Branch",
-            style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-        FlowRow(
-            modifier = modifier
-                .padding(horizontal = 8.dp)
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            branches.forEachIndexed { index, branchName ->
-                ToggleButton(
-                    checked = selectedBranch == branchName,
-                    onCheckedChange = { 
-                        onBranchSelected(branchName)
-                    },
-                    shapes = when (index) {
-                        0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                        branches.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                        else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                    },
-                    modifier = Modifier.semantics { role = Role.RadioButton },
-                ) {
-                    Icon(
-                        imageVector = if (selectedBranch == branchName) 
-                            Icons.Filled.AccountTree 
-                        else 
-                            Icons.Outlined.AccountTree,
-                        contentDescription = "Branch",
-                    )
-                    Spacer(Modifier.size(ToggleButtonDefaults.IconSpacing))
-                    Text(branchName)
+        Column(modifier = modifier) {
+            Text(
+                text = "Seleccionar Branch",
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
+            ) {
+                itemsIndexed(branches) { index, branchName ->
+                    ToggleButton(
+                        checked = selectedBranch == branchName,
+                        onCheckedChange = { onBranchSelected(branchName) },
+                        shapes = when (index) {
+                            0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                            branches.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                            else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                        },
+                        modifier = Modifier.semantics { role = Role.RadioButton }
+                    ) {
+                        Icon(
+                            imageVector = if (selectedBranch == branchName) Icons.Filled.AccountTree else Icons.Outlined.AccountTree,
+                            contentDescription = "Branch",
+                        )
+                        Spacer(Modifier.size(ToggleButtonDefaults.IconSpacing))
+                        Text(branchName)
+                    }
                 }
             }
         }
@@ -1171,187 +1165,6 @@ class CodeReviewViewModel : ViewModel() {
                 it.copy(
                     error = e.message ?: "Error al cargar branches",
                     isLoadingBranches = false
-                )
-            }
-        }
-    }
-}
-
-// Preview Functions
-@Preview(showBackground = true, showSystemUi = true)
-@Composable
-fun SelectionScreenPreview() {
-    CodeReviewerAppTheme {
-        SelectionScreen(
-            viewModel = object : CodeReviewViewModel() {
-                init {
-                    _uiState.value = CodeReviewUiState(
-                        repositoryUrl = "https://github.com/enelramon/CodeReviewerApp.git",
-                        owner = "enelramon",
-                        repo = "CodeReviewerApp",
-                        branch = "master",
-                        branches = listOf("master", "main", "develop", "feature/new-ui"),
-                        files = listOf(
-                            FileItem("app/src/main/java/com/sagrd/codereviewerapp/MainActivity.kt", "abc123", true),
-                            FileItem("app/src/main/java/com/sagrd/codereviewerapp/ui/theme/Theme.kt", "def456", false),
-                            FileItem("app/src/main/java/com/sagrd/codereviewerapp/ui/theme/Color.kt", "ghi789", true),
-                            FileItem("app/src/main/java/com/sagrd/codereviewerapp/ui/theme/Type.kt", "jkl012", false),
-                            FileItem("app/src/main/java/com/sagrd/codereviewerapp/navigation/Destinations.kt", "mno345", false)
-                        )
-                    )
-                }
-            },
-            onNavigateToReview = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, showSystemUi = true)
-@Composable
-fun SelectionScreenWithErrorPreview() {
-    CodeReviewerAppTheme {
-        SelectionScreen(
-            viewModel = object : CodeReviewViewModel() {
-                init {
-                    _uiState.value = CodeReviewUiState(
-                        repositoryUrl = "https://github.com/enelramon/CodeReviewerApp.git",
-                        owner = "enelramon",
-                        repo = "CodeReviewerApp",
-                        branch = "master",
-                        error = "Error al cargar los archivos del repositorio"
-                    )
-                }
-            },
-            onNavigateToReview = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, showSystemUi = true)
-@Composable
-fun ReviewScreenPreview() {
-    CodeReviewerAppTheme {
-        ReviewScreen(
-            viewModel = object : CodeReviewViewModel() {
-                init {
-                    _uiState.value = CodeReviewUiState(
-                        files = listOf(
-                            FileItem("app/src/main/java/com/sagrd/codereviewerapp/MainActivity.kt", "abc123", true),
-                            FileItem("app/src/main/java/com/sagrd/codereviewerapp/ui/theme/Theme.kt", "def456", true)
-                        ),
-                        currentFileName = "MainActivity.kt",
-                        currentFileContent = """
-                            package com.sagrd.codereviewerapp
-                            
-                            import android.os.Bundle
-                            import androidx.activity.ComponentActivity
-                            
-                            class MainActivity : ComponentActivity() {
-                                override fun onCreate(savedInstanceState: Bundle?) {
-                                    super.onCreate(savedInstanceState)
-                                    // Setup code here
-                                }
-                            }
-                        """.trimIndent(),
-                        currentComment = ""
-                    )
-                }
-            },
-            onNavigateToSummary = {},
-            onNavigateBack = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, showSystemUi = true)
-@Composable
-fun ReviewScreenWithCommentPreview() {
-    CodeReviewerAppTheme {
-        ReviewScreen(
-            viewModel = object : CodeReviewViewModel() {
-                init {
-                    _uiState.value = CodeReviewUiState(
-                        files = listOf(
-                            FileItem("app/src/main/MainActivity.kt", "abc123", true),
-                            FileItem("app/src/ui/theme/Theme.kt", "def456", true)
-                        ),
-                        currentFileName = "MainActivity.kt",
-                        currentFileContent = """
-                            package com.sagrd.codereviewerapp
-                            
-                            class MainActivity : ComponentActivity() {
-                                override fun onCreate(savedInstanceState: Bundle?) {
-                                    super.onCreate(savedInstanceState)
-                                }
-                            }
-                        """.trimIndent(),
-                        currentComment = "Consider adding error handling here"
-                    )
-                }
-            },
-            onNavigateToSummary = {},
-            onNavigateBack = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, showSystemUi = true)
-@Composable
-fun SummaryScreenPreview() {
-    CodeReviewerAppTheme {
-        SummaryScreen(
-            viewModel = object : CodeReviewViewModel() {
-                init {
-                    _uiState.value = CodeReviewUiState(
-                        comments = listOf(
-                            CodeComment("MainActivity.kt", "Great code structure! Consider extracting the ViewModel to a separate file."),
-                            CodeComment("Theme.kt", "The color scheme is well organized. Consider adding more color variants for different states."),
-                            CodeComment("Color.kt", "Good use of Material Design colors. Consider documenting the purpose of each color.")
-                        )
-                    )
-                }
-            },
-            onNavigateToSelection = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, showSystemUi = true)
-@Composable
-fun SummaryScreenEmptyPreview() {
-    CodeReviewerAppTheme {
-        SummaryScreen(
-            viewModel = object : CodeReviewViewModel() {
-                init {
-                    _uiState.value = CodeReviewUiState(
-                        comments = emptyList()
-                    )
-                }
-            },
-            onNavigateToSelection = {}
-        )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun FileListItemPreview() {
-    CodeReviewerAppTheme {
-        Surface {
-            Column {
-                FileListItem(
-                    file = FileItem("app/src/main/java/com/sagrd/codereviewerapp/MainActivity.kt", "abc123", false),
-                    onToggleSelection = {}
-                )
-                HorizontalDivider()
-                FileListItem(
-                    file = FileItem("app/src/main/java/com/sagrd/codereviewerapp/ui/theme/Theme.kt", "def456", true),
-                    onToggleSelection = {}
-                )
-                HorizontalDivider()
-                FileListItem(
-                    file = FileItem("MainActivity.kt", "ghi789", false),
-                    onToggleSelection = {}
                 )
             }
         }
