@@ -75,6 +75,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
@@ -173,7 +174,20 @@ fun SelectionScreen(
     onNavigateToReview: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    SeleccionScreenBody(
+        uiState = uiState,
+        onEvent = viewModel::onEvent,
+        onNavigateToReview = onNavigateToReview
+    )
+}
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SeleccionScreenBody(
+    uiState: CodeReviewUiState,
+    onEvent: (CodeReviewUiEvent) -> Unit,
+    onNavigateToReview: () -> Unit
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -199,7 +213,7 @@ fun SelectionScreen(
             ) {
                 OutlinedTextField(
                     value = uiState.repositoryUrl,
-                    onValueChange = { viewModel.onEvent(CodeReviewUiEvent.UpdateRepositoryUrl(it)) },
+                    onValueChange = { onEvent(CodeReviewUiEvent.UpdateRepositoryUrl(it)) },
                     label = { Text("URL del Repositorio") },
                     placeholder = { Text("https://github.com/owner/repo.git") },
                     modifier = Modifier.weight(1f),
@@ -207,7 +221,7 @@ fun SelectionScreen(
                 )
                 Button(
                     onClick = {
-                        viewModel.onEvent(CodeReviewUiEvent.LoadBranches)
+                        onEvent(CodeReviewUiEvent.LoadBranches)
                     },
                     enabled = !uiState.isLoadingBranches,
                     modifier = Modifier.height(56.dp)
@@ -218,45 +232,44 @@ fun SelectionScreen(
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(if (uiState.isLoadingBranches) "..." else "Buscar")
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            
-            // Input fields for repo info
-            OutlinedTextField(
-                value = uiState.owner,
-                onValueChange = { viewModel.onEvent(CodeReviewUiEvent.UpdateOwner(it)) },
-                label = { Text("Owner") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "Owner"
-                    )
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
+
+            /* // Input fields for repo info
+             OutlinedTextField(
+                 value = uiState.owner,
+                 onValueChange = { onEvent(CodeReviewUiEvent.UpdateOwner(it)) },
+                 label = { Text("Owner") },
+                 leadingIcon = {
+                     Icon(
+                         imageVector = Icons.Default.Person,
+                         contentDescription = "Owner"
+                     )
+                 },
+                 modifier = Modifier.fillMaxWidth()
+             )
+             Spacer(modifier = Modifier.height(8.dp))
+             OutlinedTextField(
+                 value = uiState.repo,
+                 onValueChange = { onEvent(CodeReviewUiEvent.UpdateRepo(it)) },
+                 label = { Text("Repositorio") },
+                 leadingIcon = {
+                     Icon(
+                         imageVector = Icons.Default.Storage,
+                         contentDescription = "Repositorio"
+                     )
+                 },
+                 modifier = Modifier.fillMaxWidth()
+             )*/
             Spacer(modifier = Modifier.height(8.dp))
-            OutlinedTextField(
-                value = uiState.repo,
-                onValueChange = { viewModel.onEvent(CodeReviewUiEvent.UpdateRepo(it)) },
-                label = { Text("Repositorio") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Storage,
-                        contentDescription = "Repositorio"
-                    )
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            
+
             // Branch selection
             BranchSelector(
                 branches = uiState.branches,
                 selectedBranch = uiState.branch,
                 onBranchSelected = { branchName ->
-                    viewModel.onEvent(CodeReviewUiEvent.UpdateBranch(branchName))
+                    onEvent(CodeReviewUiEvent.UpdateBranch(branchName))
                 }
             )
             Spacer(modifier = Modifier.height(16.dp))
@@ -264,7 +277,7 @@ fun SelectionScreen(
             // Load button
             Button(
                 onClick = {
-                    viewModel.onEvent(CodeReviewUiEvent.LoadFiles)
+                    onEvent(CodeReviewUiEvent.LoadFiles)
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !uiState.isLoading
@@ -306,8 +319,8 @@ fun SelectionScreen(
                 items(uiState.files) { file ->
                     FileListItem(
                         file = file,
-                        onToggleSelection = { 
-                            viewModel.onEvent(
+                        onToggleSelection = {
+                            onEvent(
                                 CodeReviewUiEvent.ToggleFileSelection(it)
                             )
                         }
@@ -418,6 +431,24 @@ fun FileListItem(
         )
         Spacer(modifier = Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
+            // Filename - bold and more visible with file icon
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.InsertDriveFile,
+                    contentDescription = "File",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = fileName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
             // Directory path - smaller and more subtle with folder icon
             if (directoryPath.isNotEmpty()) {
                 Row(
@@ -437,24 +468,7 @@ fun FileListItem(
                     )
                 }
             }
-            // Filename - bold and more visible with file icon
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.InsertDriveFile,
-                    contentDescription = "File",
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = fileName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
+
         }
     }
 }
@@ -588,7 +602,7 @@ fun ReviewScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(if (uiState.isSuggesting) "Sugiriendo..." else "Sugerir")
                         }
-                        
+
                         Button(
                             onClick = {
                                 viewModel.onEvent(CodeReviewUiEvent.AddComment)
@@ -895,7 +909,7 @@ interface GitHubApi {
 class CodeReviewViewModel : ViewModel() {
     // Gemini API key - In production, this should be stored securely
     private val geminiApiKey = BuildConfig.GEMINI_API_KEY.takeIf { it.isNotBlank() } ?: ""
-    
+
     private val generativeModel = if (geminiApiKey.isNotBlank()) {
         GenerativeModel(
             modelName = "gemini-pro",
@@ -908,7 +922,7 @@ class CodeReviewViewModel : ViewModel() {
             }
         )
     } else null
-    
+
     private val json = Json { ignoreUnknownKeys = true }
     private val retrofit = Retrofit.Builder()
         .baseUrl("https://api.github.com/")
@@ -931,40 +945,50 @@ class CodeReviewViewModel : ViewModel() {
                 _uiState.update { it.copy(repositoryUrl = event.url) }
                 parseGitHubUrl(event.url)
             }
+
             is CodeReviewUiEvent.UpdateOwner -> {
                 _uiState.update { it.copy(owner = event.owner) }
             }
+
             is CodeReviewUiEvent.UpdateRepo -> {
                 _uiState.update { it.copy(repo = event.repo) }
             }
+
             is CodeReviewUiEvent.UpdateBranch -> {
                 _uiState.update { it.copy(branch = event.branch) }
             }
+
             is CodeReviewUiEvent.LoadBranches -> {
                 viewModelScope.launch {
                     loadBranches()
                 }
             }
+
             is CodeReviewUiEvent.LoadFiles -> {
                 // Launch a coroutine to perform the suspend operation
                 viewModelScope.launch {
                     loadFiles()
                 }
             }
+
             is CodeReviewUiEvent.ToggleFileSelection -> {
                 toggleFileSelection(event.file)
             }
+
             is CodeReviewUiEvent.LoadFileContent -> {
                 viewModelScope.launch {
                     loadFileContent(event.file)
                 }
             }
+
             is CodeReviewUiEvent.UpdateComment -> {
                 _uiState.update { it.copy(currentComment = event.comment) }
             }
+
             is CodeReviewUiEvent.AddComment -> {
                 addComment()
             }
+
             is CodeReviewUiEvent.SuggestComment -> {
                 viewModelScope.launch {
                     suggestComment()
@@ -1056,8 +1080,8 @@ class CodeReviewViewModel : ViewModel() {
 
     private suspend fun suggestComment() {
         if (generativeModel == null) {
-            _uiState.update { 
-                it.copy(error = "Gemini API key no configurada. Agregue GEMINI_API_KEY en local.properties") 
+            _uiState.update {
+                it.copy(error = "Gemini API key no configurada. Agregue GEMINI_API_KEY en local.properties")
             }
             return
         }
@@ -1068,7 +1092,7 @@ class CodeReviewViewModel : ViewModel() {
         }
 
         _uiState.update { it.copy(isSuggesting = true, error = null) }
-        
+
         try {
             val prompt = """
                 Eres un experto revisor de código. Analiza el siguiente código y proporciona un comentario de revisión constructivo en español.
@@ -1094,8 +1118,8 @@ class CodeReviewViewModel : ViewModel() {
             }
 
             val suggestion = response.text ?: "No se pudo generar una sugerencia."
-            
-            _uiState.update { 
+
+            _uiState.update {
                 it.copy(
                     currentComment = suggestion,
                     isSuggesting = false
@@ -1119,14 +1143,14 @@ class CodeReviewViewModel : ViewModel() {
         // - github.com/owner/repo
         val regex = Regex("""(?:https?://)?(?:www\.)?github\.com/([^/]+)/([^/\.]+)(?:\.git)?""")
         val matchResult = regex.find(url)
-        
+
         if (matchResult != null) {
             val (owner, repo) = matchResult.destructured
-            _uiState.update { 
+            _uiState.update {
                 it.copy(
                     owner = owner,
                     repo = repo
-                ) 
+                )
             }
         }
     }
@@ -1134,21 +1158,21 @@ class CodeReviewViewModel : ViewModel() {
     private suspend fun loadBranches() {
         val owner = _uiState.value.owner
         val repo = _uiState.value.repo
-        
+
         if (owner.isBlank() || repo.isBlank()) {
-            _uiState.update { 
-                it.copy(error = "Owner y Repo son requeridos para buscar branches") 
+            _uiState.update {
+                it.copy(error = "Owner y Repo son requeridos para buscar branches")
             }
             return
         }
-        
+
         _uiState.update { it.copy(isLoadingBranches = true, error = null) }
         try {
             val branchesList = withContext(Dispatchers.IO) {
                 api.getBranches(owner, repo)
             }
             val branchNames = branchesList.map { it.name }
-            _uiState.update { 
+            _uiState.update {
                 it.copy(
                     branches = branchNames,
                     isLoadingBranches = false,
@@ -1158,7 +1182,7 @@ class CodeReviewViewModel : ViewModel() {
                     } else {
                         it.branch
                     }
-                ) 
+                )
             }
         } catch (e: Exception) {
             _uiState.update {
@@ -1168,5 +1192,21 @@ class CodeReviewViewModel : ViewModel() {
                 )
             }
         }
+    }
+}
+
+@Preview
+@Composable
+private fun SeleccionScreenPreview() {
+    CodeReviewerAppTheme {
+        SeleccionScreenBody(
+            uiState = CodeReviewUiState(
+                files = listOf(
+                    FileItem("file1.kt", "sha1"),
+                    FileItem("file2.kt", "sha2")
+                )
+            ),
+            onEvent = {}
+        ) { }
     }
 }
