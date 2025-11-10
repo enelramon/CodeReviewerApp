@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,11 +20,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +34,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material.icons.Icons
@@ -50,6 +55,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.outlined.AccountTree
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -61,6 +67,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -241,17 +250,14 @@ fun SelectionScreen(
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
-            OutlinedTextField(
-                value = uiState.branch,
-                onValueChange = { viewModel.onEvent(CodeReviewUiEvent.UpdateBranch(it)) },
-                label = { Text("Branch") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.AccountTree,
-                        contentDescription = "Branch"
-                    )
-                },
-                modifier = Modifier.fillMaxWidth()
+            
+            // Branch selection
+            BranchSelector(
+                branches = uiState.branches,
+                selectedBranch = uiState.branch,
+                onBranchSelected = { branchName ->
+                    viewModel.onEvent(CodeReviewUiEvent.UpdateBranch(branchName))
+                }
             )
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -329,6 +335,68 @@ fun SelectionScreen(
                 )
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun BranchSelector(
+    branches: List<String>,
+    selectedBranch: String,
+    onBranchSelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (branches.isNotEmpty()) {
+        Text(
+            text = "Seleccionar Branch",
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        FlowRow(
+            modifier = modifier
+                .padding(horizontal = 8.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            branches.forEachIndexed { index, branchName ->
+                ToggleButton(
+                    checked = selectedBranch == branchName,
+                    onCheckedChange = { 
+                        onBranchSelected(branchName)
+                    },
+                    shapes = when (index) {
+                        0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                        branches.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                        else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                    },
+                    modifier = Modifier.semantics { role = Role.RadioButton },
+                ) {
+                    Icon(
+                        imageVector = if (selectedBranch == branchName) 
+                            Icons.Filled.AccountTree 
+                        else 
+                            Icons.Outlined.AccountTree,
+                        contentDescription = "Branch",
+                    )
+                    Spacer(Modifier.size(ToggleButtonDefaults.IconSpacing))
+                    Text(branchName)
+                }
+            }
+        }
+    } else {
+        OutlinedTextField(
+            value = selectedBranch,
+            onValueChange = onBranchSelected,
+            label = { Text("Branch") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.AccountTree,
+                    contentDescription = "Branch"
+                )
+            },
+            modifier = modifier.fillMaxWidth()
+        )
     }
 }
 
@@ -1122,6 +1190,7 @@ fun SelectionScreenPreview() {
                         owner = "enelramon",
                         repo = "CodeReviewerApp",
                         branch = "master",
+                        branches = listOf("master", "main", "develop", "feature/new-ui"),
                         files = listOf(
                             FileItem("app/src/main/java/com/sagrd/codereviewerapp/MainActivity.kt", "abc123", true),
                             FileItem("app/src/main/java/com/sagrd/codereviewerapp/ui/theme/Theme.kt", "def456", false),
