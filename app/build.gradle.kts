@@ -80,6 +80,7 @@ dependencies {
 
     // Gemini AI
     implementation(libs.generativeai)
+    implementation(libs.androidx.compose.ui.geometry)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
