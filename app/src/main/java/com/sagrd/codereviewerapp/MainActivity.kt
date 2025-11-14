@@ -56,8 +56,10 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -187,7 +189,7 @@ fun SelectionScreen(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SeleccionScreenBody(
     uiState: CodeReviewUiState,
@@ -281,7 +283,6 @@ fun SeleccionScreenBody(
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Load button
             Button(
                 onClick = {
                     onEvent(CodeReviewUiEvent.LoadFiles)
@@ -290,11 +291,7 @@ fun SeleccionScreenBody(
                 enabled = !uiState.isLoading
             ) {
                 if (uiState.isLoading) {
-                    IndeterminateLinearWavyProgressIndicatorSample(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(24.dp)
-                    )
+                    LinearWavyProgressIndicator(modifier = Modifier.fillMaxWidth())
                 } else {
                     Icon(
                         imageVector = Icons.Default.CloudDownload,
@@ -305,7 +302,6 @@ fun SeleccionScreenBody(
                     Text("Cargar Archivos")
                 }
             }
-
             Spacer(modifier = Modifier.height(16.dp))
 
             // Error message
@@ -910,7 +906,7 @@ interface GitHubApi {
 // ViewModel
 class CodeReviewViewModel : ViewModel() {
     // Gemini API key - In production, this should be stored securely
-    private val geminiApiKey = BuildConfig.GEMINI_API_KEY.takeIf { it.isNotBlank() } ?: ""
+    private val geminiApiKey: String = com.sagrd.codereviewerapp.BuildConfig.GEMINI_API_KEY
 
     private val generativeModel = if (geminiApiKey.isNotBlank()) {
         GenerativeModel(
@@ -1213,44 +1209,3 @@ private fun SeleccionScreenPreview() {
     }
 }
 
-@Composable
-fun IndeterminateLinearWavyProgressIndicatorSample(
-    modifier: Modifier = Modifier,
-    color: Color = Color(0xFF1E88E5),
-    amplitude: Float = 4f,
-    wavelength: Float = 40f,
-    speed: Float = 2f
-) {
-    val infiniteTransition = rememberInfiniteTransition(label = "WavyIndicator")
-
-    val phase by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 2 * Math.PI.toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "Phase"
-    )
-
-    Canvas(modifier = modifier.fillMaxWidth().height(6.dp)) {
-        val width = size.width
-        val height = size.height / 2
-
-        val pathPoints = (0..width.toInt()).map { x ->
-            val y = height + amplitude * sin((x / wavelength) + phase)
-            Offset(x.toFloat(), y)
-        }
-
-        for (i in 1 until pathPoints.size) {
-            val start = pathPoints[i - 1]
-            val end = pathPoints[i]
-            drawLine(
-                color = color,
-                start = start,
-                end = end,
-                strokeWidth = 3f
-            )
-        }
-    }
-}
