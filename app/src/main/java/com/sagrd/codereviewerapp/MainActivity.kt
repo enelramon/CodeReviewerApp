@@ -1,7 +1,7 @@
 package com.sagrd.codereviewerapp
 
-import android.os.Bundle
 import android.content.Intent
+import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -21,6 +21,22 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.NavigateBefore
+import androidx.compose.material.icons.filled.NavigateNext
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.outlined.AccountTree
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.Card
@@ -32,6 +48,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -41,25 +58,6 @@ import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountTree
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.CloudDownload
-import androidx.compose.material.icons.filled.Comment
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.InsertDriveFile
-import androidx.compose.material.icons.filled.Lightbulb
-import androidx.compose.material.icons.filled.NavigateBefore
-import androidx.compose.material.icons.filled.NavigateNext
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.outlined.AccountTree
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -75,11 +73,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -182,7 +178,7 @@ fun SelectionScreen(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SeleccionScreenBody(
     uiState: CodeReviewUiState,
@@ -234,6 +230,7 @@ fun SeleccionScreenBody(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                 }
+
             }
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -275,7 +272,6 @@ fun SeleccionScreenBody(
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Load button
             Button(
                 onClick = {
                     onEvent(CodeReviewUiEvent.LoadFiles)
@@ -283,15 +279,18 @@ fun SeleccionScreenBody(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !uiState.isLoading
             ) {
-                Icon(
-                    imageVector = Icons.Default.CloudDownload,
-                    contentDescription = "Cargar archivos",
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(if (uiState.isLoading) "Cargando..." else "Cargar Archivos")
+                if (uiState.isLoading) {
+                    LinearWavyProgressIndicator(modifier = Modifier.fillMaxWidth())
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.CloudDownload,
+                        contentDescription = "Cargar archivos",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Cargar Archivos")
+                }
             }
-
             Spacer(modifier = Modifier.height(16.dp))
 
             // Error message
@@ -896,7 +895,7 @@ interface GitHubApi {
 // ViewModel
 class CodeReviewViewModel : ViewModel() {
     // Gemini API key - In production, this should be stored securely
-    private val geminiApiKey = BuildConfig.GEMINI_API_KEY.takeIf { it.isNotBlank() } ?: ""
+    private val geminiApiKey: String = com.sagrd.codereviewerapp.BuildConfig.GEMINI_API_KEY
 
     private val generativeModel = if (geminiApiKey.isNotBlank()) {
         GenerativeModel(
@@ -1198,3 +1197,4 @@ private fun SeleccionScreenPreview() {
         ) { }
     }
 }
+
