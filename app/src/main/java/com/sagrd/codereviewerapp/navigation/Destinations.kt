@@ -12,4 +12,7 @@ sealed class Destinations {
 
     @Serializable
     data object Summary : Destinations()
+
+    @Serializable
+    data object History : Destinations()
 }

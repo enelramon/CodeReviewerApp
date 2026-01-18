@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.NavigateBefore
@@ -84,6 +85,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.generationConfig
+import com.google.firebase.firestore.FirebaseFirestore
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import com.sagrd.codereviewerapp.navigation.Destinations
 import com.sagrd.codereviewerapp.ui.theme.CodeReviewerAppTheme
@@ -97,6 +99,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -108,6 +111,13 @@ import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
 import java.util.Base64
+import java.util.Date
+
+// Project Type Enum for dynamic syntax highlighting
+enum class ProjectType(val syntaxLanguage: SyntaxLanguage, val displayName: String) {
+    KOTLIN(SyntaxLanguage.KOTLIN, "Kotlin"),
+    BLAZOR(SyntaxLanguage.C_SHARP, "Blazor (C#)")
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -138,6 +148,9 @@ fun CodeReviewerApp() {
                     viewModel = viewModel,
                     onNavigateToReview = {
                         navController.navigate(Destinations.Review)
+                    },
+                    onNavigateToHistory = {
+                        navController.navigate(Destinations.History)
                     }
                 )
             }
@@ -156,7 +169,17 @@ fun CodeReviewerApp() {
                 SummaryScreen(
                     viewModel = viewModel,
                     onNavigateToSelection = {
-                        navController.navigate(Destinations.Selection)
+                        navController.navigate(Destinations.Selection) {
+                            popUpTo(Destinations.Selection) { inclusive = true }
+                        }
+                    }
+                )
+            }
+            composable<Destinations.History> {
+                HistoryScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = {
+                        navController.popBackStack()
                     }
                 )
             }
@@ -168,13 +191,15 @@ fun CodeReviewerApp() {
 @Composable
 fun SelectionScreen(
     viewModel: CodeReviewViewModel,
-    onNavigateToReview: () -> Unit
+    onNavigateToReview: () -> Unit,
+    onNavigateToHistory: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     SeleccionScreenBody(
         uiState = uiState,
         onEvent = viewModel::onEvent,
-        onNavigateToReview = onNavigateToReview
+        onNavigateToReview = onNavigateToReview,
+        onNavigateToHistory = onNavigateToHistory
     )
 }
 
@@ -183,12 +208,22 @@ fun SelectionScreen(
 fun SeleccionScreenBody(
     uiState: CodeReviewUiState,
     onEvent: (CodeReviewUiEvent) -> Unit,
-    onNavigateToReview: () -> Unit
+    onNavigateToReview: () -> Unit,
+    onNavigateToHistory: () -> Unit
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Selección de Archivos") },
+                actions = {
+                    IconButton(onClick = onNavigateToHistory) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = "Ver Historial",
+                            tint = Color.White
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = Color.White
@@ -202,6 +237,29 @@ fun SeleccionScreenBody(
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
+            // Project Type Selector
+            Text(
+                text = "Tipo de Proyecto",
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(ProjectType.values().size) { index ->
+                    val projectType = ProjectType.values()[index]
+                    ToggleButton(
+                        checked = uiState.projectType == projectType,
+                        onCheckedChange = { onEvent(CodeReviewUiEvent.UpdateProjectType(projectType)) },
+                        modifier = Modifier.semantics { role = Role.RadioButton }
+                    ) {
+                        Text(projectType.displayName)
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+
             // Repository URL input with search button
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -487,6 +545,8 @@ fun ReviewScreen(
     LaunchedEffect(currentFileIndex) {
         if (selectedFiles.isNotEmpty() && currentFileIndex < selectedFiles.size) {
             viewModel.onEvent(CodeReviewUiEvent.LoadFileContent(selectedFiles[currentFileIndex]))
+            // Load existing comment for current file
+            viewModel.onEvent(CodeReviewUiEvent.LoadCommentForFile(selectedFiles[currentFileIndex].path))
         }
     }
 
@@ -550,7 +610,7 @@ fun ReviewScreen(
                             CircularProgressIndicator()
                         }
                     } else {
-                        SyntaxHighlightedCode(uiState.currentFileContent)
+                        SyntaxHighlightedCode(uiState.currentFileContent, uiState.projectType)
                     }
                 }
 
@@ -658,13 +718,13 @@ fun ReviewScreen(
 }
 
 @Composable
-fun SyntaxHighlightedCode(code: String) {
-    val highlights = remember(code) {
+fun SyntaxHighlightedCode(code: String, projectType: ProjectType = ProjectType.KOTLIN) {
+    val highlights = remember(code, projectType) {
         mutableStateOf(
             Highlights
                 .Builder(code = code)
                 .theme(SyntaxThemes.atom())
-                .language(SyntaxLanguage.KOTLIN)
+                .language(projectType.syntaxLanguage)
                 .build()
         )
     }
@@ -692,10 +752,17 @@ fun SummaryScreen(
         val shareText = buildString {
             appendLine("Resumen de Comentarios de Revisión")
             appendLine("--------------------------------")
+            appendLine("Repositorio: ${uiState.owner}/${uiState.repo}")
+            appendLine("Branch: ${uiState.branch}")
+            appendLine()
             uiState.comments.forEachIndexed { index, c ->
                 appendLine("${index + 1}. Archivo: ${c.fileName}")
                 appendLine("   Comentario: ${c.comment}")
                 appendLine()
+            }
+            if (uiState.aiSummary.isNotBlank()) {
+                appendLine("Resumen de IA:")
+                appendLine(uiState.aiSummary)
             }
         }
         val intent = Intent(Intent.ACTION_SEND).apply {
@@ -744,6 +811,67 @@ fun SummaryScreen(
                     modifier = Modifier.padding(16.dp)
                 )
             } else {
+                // Generate AI Summary button
+                Button(
+                    onClick = { viewModel.onEvent(CodeReviewUiEvent.GenerateAISummary) },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !uiState.isSuggesting && uiState.aiSummary.isBlank()
+                ) {
+                    if (uiState.isSuggesting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Icon(
+                        imageVector = Icons.Default.Lightbulb,
+                        contentDescription = "Generar Resumen IA",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(if (uiState.isSuggesting) "Generando..." else "Generar Resumen con IA")
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // AI Summary Card
+                if (uiState.aiSummary.isNotBlank()) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Lightbulb,
+                                    contentDescription = "IA",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Resumen de IA",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = uiState.aiSummary,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+
                 LazyColumn(
                     modifier = Modifier.weight(1f)
                 ) {
@@ -775,8 +903,40 @@ fun SummaryScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Finalize and save to Firestore
             Button(
-                onClick = { onNavigateToSelection() },
+                onClick = { 
+                    viewModel.onEvent(CodeReviewUiEvent.SaveReviewToHistory)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = uiState.comments.isNotEmpty() && !uiState.isSaving
+            ) {
+                if (uiState.isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Guardando...")
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Save,
+                        contentDescription = "Finalizar y Guardar",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Finalizar y Guardar en Historial")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Button(
+                onClick = { 
+                    viewModel.onEvent(CodeReviewUiEvent.ResetState)
+                    onNavigateToSelection() 
+                },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(
@@ -786,6 +946,156 @@ fun SummaryScreen(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Nueva Revisión")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HistoryScreen(
+    viewModel: CodeReviewViewModel,
+    onNavigateBack: () -> Unit
+) {
+    val uiState by viewModel.uiState.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.onEvent(CodeReviewUiEvent.LoadHistory)
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Historial de Revisiones") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Volver",
+                            tint = Color.White
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = Color.White
+                )
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp)
+        ) {
+            if (uiState.isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else if (uiState.history.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.Folder,
+                            contentDescription = "Sin historial",
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "No hay revisiones en el historial",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            } else {
+                LazyColumn {
+                    items(uiState.history) { historyItem ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "${historyItem.owner}/${historyItem.repo}",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
+                                            .format(historyItem.date),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Branch: ${historyItem.branch}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "${historyItem.comments.size} comentarios",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                
+                                if (historyItem.aiSummary.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    HorizontalDivider()
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.Lightbulb,
+                                            contentDescription = "IA",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "Resumen de IA:",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Text(
+                                        text = historyItem.aiSummary,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                }
+
+                                // Show first 2 comments
+                                historyItem.comments.take(2).forEach { comment ->
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "• ${comment.fileName}: ${comment.comment.take(50)}${if (comment.comment.length > 50) "..." else ""}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -832,6 +1142,53 @@ data class CodeComment(
     val comment: String
 )
 
+data class ReviewHistoryItem(
+    val id: String = "",
+    val owner: String = "",
+    val repo: String = "",
+    val branch: String = "",
+    val date: Date = Date(),
+    val comments: List<CodeComment> = emptyList(),
+    val aiSummary: String = "",
+    val projectType: String = ProjectType.KOTLIN.name
+) {
+    // Convert to Map for Firestore
+    fun toMap(): Map<String, Any> = mapOf(
+        "owner" to owner,
+        "repo" to repo,
+        "branch" to branch,
+        "date" to date,
+        "comments" to comments.map { mapOf("fileName" to it.fileName, "comment" to it.comment) },
+        "aiSummary" to aiSummary,
+        "projectType" to projectType
+    )
+
+    companion object {
+        // Create from Firestore document
+        fun fromMap(id: String, map: Map<String, Any>): ReviewHistoryItem {
+            val commentsList = (map["comments"] as? List<*>)?.mapNotNull { item ->
+                (item as? Map<*, *>)?.let { commentMap ->
+                    CodeComment(
+                        fileName = commentMap["fileName"] as? String ?: "",
+                        comment = commentMap["comment"] as? String ?: ""
+                    )
+                }
+            } ?: emptyList()
+            
+            return ReviewHistoryItem(
+                id = id,
+                owner = map["owner"] as? String ?: "",
+                repo = map["repo"] as? String ?: "",
+                branch = map["branch"] as? String ?: "",
+                date = (map["date"] as? com.google.firebase.Timestamp)?.toDate() ?: Date(),
+                comments = commentsList,
+                aiSummary = map["aiSummary"] as? String ?: "",
+                projectType = map["projectType"] as? String ?: ProjectType.KOTLIN.name
+            )
+        }
+    }
+}
+
 // UI State
 data class CodeReviewUiState(
     val repositoryUrl: String = "https://github.com/enelramon/CodeReviewerApp.git",
@@ -843,11 +1200,15 @@ data class CodeReviewUiState(
     val files: List<FileItem> = emptyList(),
     val isLoading: Boolean = false,
     val isSuggesting: Boolean = false,
+    val isSaving: Boolean = false,
     val error: String? = null,
     val currentFileContent: String = "",
     val currentFileName: String = "",
     val currentComment: String = "",
-    val comments: List<CodeComment> = emptyList()
+    val comments: List<CodeComment> = emptyList(),
+    val projectType: ProjectType = ProjectType.KOTLIN,
+    val aiSummary: String = "",
+    val history: List<ReviewHistoryItem> = emptyList()
 ) {
     val selectedFiles: List<FileItem>
         get() = files.filter { it.isSelected }
@@ -859,13 +1220,19 @@ sealed interface CodeReviewUiEvent {
     data class UpdateOwner(val owner: String) : CodeReviewUiEvent
     data class UpdateRepo(val repo: String) : CodeReviewUiEvent
     data class UpdateBranch(val branch: String) : CodeReviewUiEvent
+    data class UpdateProjectType(val projectType: ProjectType) : CodeReviewUiEvent
     data object LoadBranches : CodeReviewUiEvent
     data object LoadFiles : CodeReviewUiEvent
     data class ToggleFileSelection(val file: FileItem) : CodeReviewUiEvent
     data class LoadFileContent(val file: FileItem) : CodeReviewUiEvent
+    data class LoadCommentForFile(val fileName: String) : CodeReviewUiEvent
     data class UpdateComment(val comment: String) : CodeReviewUiEvent
     data object AddComment : CodeReviewUiEvent
     data object SuggestComment : CodeReviewUiEvent
+    data object GenerateAISummary : CodeReviewUiEvent
+    data object SaveReviewToHistory : CodeReviewUiEvent
+    data object LoadHistory : CodeReviewUiEvent
+    data object ResetState : CodeReviewUiEvent
 }
 
 // Retrofit API Interface
@@ -892,6 +1259,61 @@ interface GitHubApi {
     ): List<GitHubBranch>
 }
 
+// Firestore Repository
+class FirestoreRepository(private val firestore: FirebaseFirestore) {
+    // AppId can be configured per build variant or from BuildConfig if needed
+    // For now using a constant value. For production, consider making this dynamic.
+    private val appId = "code-reviewer-app"
+    
+    suspend fun saveReviewHistory(historyItem: ReviewHistoryItem): Result<String> {
+        return try {
+            val docRef = firestore
+                .collection("artifacts")
+                .document(appId)
+                .collection("public")
+                .collection("data")
+                .document("history")
+                .collection("reviews")
+                .document()
+            
+            withContext(Dispatchers.IO) {
+                docRef.set(historyItem.toMap()).await()
+            }
+            Result.success(docRef.id)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    suspend fun loadReviewHistory(): Result<List<ReviewHistoryItem>> {
+        return try {
+            val snapshot = withContext(Dispatchers.IO) {
+                firestore
+                    .collection("artifacts")
+                    .document(appId)
+                    .collection("public")
+                    .collection("data")
+                    .document("history")
+                    .collection("reviews")
+                    .get()
+                    .await()
+            }
+            
+            // Sort in memory by date descending (no orderBy in Firestore query as per requirements)
+            // Note: For large datasets, consider implementing pagination or limiting query results
+            val historyList = snapshot.documents.mapNotNull { doc ->
+                doc.data?.let { data ->
+                    ReviewHistoryItem.fromMap(doc.id, data)
+                }
+            }.sortedByDescending { it.date }
+            
+            Result.success(historyList)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+}
+
 // ViewModel
 class CodeReviewViewModel : ViewModel() {
     // Gemini API key - In production, this should be stored securely
@@ -899,7 +1321,7 @@ class CodeReviewViewModel : ViewModel() {
 
     private val generativeModel = if (geminiApiKey.isNotBlank()) {
         GenerativeModel(
-            modelName = "gemini-flash-latest",
+            modelName = "gemini-1.5-flash",
             apiKey = geminiApiKey,
             generationConfig = generationConfig {
                 temperature = 0.7f
@@ -916,12 +1338,17 @@ class CodeReviewViewModel : ViewModel() {
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .client(
             OkHttpClient.Builder()
-                .addInterceptor(HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY))
+                .apply {
+                    if (BuildConfig.DEBUG) {
+                        addInterceptor(HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY))
+                    }
+                }
                 .build()
         )
         .build()
 
     private val api = retrofit.create(GitHubApi::class.java)
+    private val firestoreRepository = FirestoreRepository(FirebaseFirestore.getInstance())
 
     private val _uiState = MutableStateFlow(CodeReviewUiState())
     val uiState: StateFlow<CodeReviewUiState> = _uiState.asStateFlow()
@@ -943,6 +1370,10 @@ class CodeReviewViewModel : ViewModel() {
 
             is CodeReviewUiEvent.UpdateBranch -> {
                 _uiState.update { it.copy(branch = event.branch) }
+            }
+
+            is CodeReviewUiEvent.UpdateProjectType -> {
+                _uiState.update { it.copy(projectType = event.projectType) }
             }
 
             is CodeReviewUiEvent.LoadBranches -> {
@@ -968,18 +1399,44 @@ class CodeReviewViewModel : ViewModel() {
                 }
             }
 
+            is CodeReviewUiEvent.LoadCommentForFile -> {
+                loadCommentForFile(event.fileName)
+            }
+
             is CodeReviewUiEvent.UpdateComment -> {
                 _uiState.update { it.copy(currentComment = event.comment) }
             }
 
             is CodeReviewUiEvent.AddComment -> {
-                addComment()
+                addOrUpdateComment()
             }
 
             is CodeReviewUiEvent.SuggestComment -> {
                 viewModelScope.launch {
                     suggestComment()
                 }
+            }
+
+            is CodeReviewUiEvent.GenerateAISummary -> {
+                viewModelScope.launch {
+                    generateAISummary()
+                }
+            }
+
+            is CodeReviewUiEvent.SaveReviewToHistory -> {
+                viewModelScope.launch {
+                    saveReviewToHistory()
+                }
+            }
+
+            is CodeReviewUiEvent.LoadHistory -> {
+                viewModelScope.launch {
+                    loadHistory()
+                }
+            }
+
+            is CodeReviewUiEvent.ResetState -> {
+                resetState()
             }
         }
     }
@@ -1048,13 +1505,29 @@ class CodeReviewViewModel : ViewModel() {
         }
     }
 
-    private fun addComment() {
+    private fun addOrUpdateComment() {
         _uiState.update { currentState ->
             if (currentState.currentComment.isNotBlank()) {
-                val updatedComments = currentState.comments + CodeComment(
-                    currentState.currentFileName,
-                    currentState.currentComment
-                )
+                val existingCommentIndex = currentState.comments.indexOfFirst { 
+                    it.fileName == currentState.currentFileName 
+                }
+                
+                val updatedComments = if (existingCommentIndex != -1) {
+                    // Update existing comment
+                    currentState.comments.toMutableList().apply {
+                        set(existingCommentIndex, CodeComment(
+                            currentState.currentFileName,
+                            currentState.currentComment
+                        ))
+                    }
+                } else {
+                    // Add new comment
+                    currentState.comments + CodeComment(
+                        currentState.currentFileName,
+                        currentState.currentComment
+                    )
+                }
+                
                 currentState.copy(
                     comments = updatedComments,
                     currentComment = ""
@@ -1062,6 +1535,15 @@ class CodeReviewViewModel : ViewModel() {
             } else {
                 currentState
             }
+        }
+    }
+
+    private fun loadCommentForFile(fileName: String) {
+        _uiState.update { currentState ->
+            val existingComment = currentState.comments.find { it.fileName == fileName }
+            currentState.copy(
+                currentComment = existingComment?.comment ?: ""
+            )
         }
     }
 
@@ -1081,14 +1563,35 @@ class CodeReviewViewModel : ViewModel() {
         _uiState.update { it.copy(isSuggesting = true, error = null) }
 
         try {
+            val projectContext = when (currentState.projectType) {
+                ProjectType.KOTLIN -> """
+                    Este es código Kotlin. Enfócate en:
+                    - Uso correcto de coroutines y flujos
+                    - Null safety y manejo de tipos
+                    - Convenciones de Kotlin (data classes, extension functions, etc.)
+                    - Patrones de arquitectura Android (MVVM, Repository, etc.)
+                """.trimIndent()
+                ProjectType.BLAZOR -> """
+                    Este es código Blazor (C#). Enfócate en:
+                    - Componentes Blazor y ciclo de vida
+                    - Data binding y eventos
+                    - Gestión de estado
+                    - Buenas prácticas de C# y .NET
+                    - Patrones de arquitectura web
+                """.trimIndent()
+            }
+
             val prompt = """
-                Eres un experto revisor de código. Analiza el siguiente código y proporciona un comentario de revisión constructivo en español.
+                Eres un experto revisor de código especializado en ${currentState.projectType.displayName}.
+                Analiza el siguiente código y proporciona un comentario de revisión constructivo en español.
                 El comentario debe ser breve, específico y enfocarse en mejoras de:
                 - Calidad del código
                 - Mejores prácticas
                 - Posibles bugs
                 - Rendimiento
                 - Legibilidad
+                
+                $projectContext
                 
                 Archivo: ${currentState.currentFileName}
                 
@@ -1119,6 +1622,163 @@ class CodeReviewViewModel : ViewModel() {
                     isSuggesting = false
                 )
             }
+        }
+    }
+
+    private suspend fun generateAISummary() {
+        if (generativeModel == null) {
+            _uiState.update {
+                it.copy(error = "Gemini API key no configurada. Agregue GEMINI_API_KEY en local.properties")
+            }
+            return
+        }
+
+        val currentState = _uiState.value
+        if (currentState.comments.isEmpty()) {
+            return
+        }
+
+        _uiState.update { it.copy(isSuggesting = true, error = null) }
+
+        try {
+            val commentsText = currentState.comments.joinToString("\n\n") { comment ->
+                "Archivo: ${comment.fileName}\nComentario: ${comment.comment}"
+            }
+
+            val prompt = """
+                Eres un experto en análisis de código. A continuación se presentan los comentarios de una revisión de código para un proyecto ${currentState.projectType.displayName}.
+                
+                Genera un resumen ejecutivo en español que:
+                - Identifique los temas principales encontrados
+                - Resalte los problemas críticos
+                - Sugiera áreas de mejora general
+                - Sea conciso (máximo 300 palabras)
+                
+                Comentarios de la revisión:
+                $commentsText
+                
+                Proporciona solo el resumen, sin encabezados adicionales.
+            """.trimIndent()
+
+            val response = withContext(Dispatchers.IO) {
+                generativeModel.generateContent(prompt)
+            }
+
+            val summary = response.text ?: "No se pudo generar el resumen."
+
+            _uiState.update {
+                it.copy(
+                    aiSummary = summary,
+                    isSuggesting = false
+                )
+            }
+        } catch (e: Exception) {
+            _uiState.update {
+                it.copy(
+                    error = "Error al generar resumen: ${e.message}",
+                    isSuggesting = false
+                )
+            }
+        }
+    }
+
+    private suspend fun saveReviewToHistory() {
+        val currentState = _uiState.value
+        if (currentState.comments.isEmpty()) {
+            return
+        }
+
+        _uiState.update { it.copy(isSaving = true, error = null) }
+
+        try {
+            val historyItem = ReviewHistoryItem(
+                owner = currentState.owner,
+                repo = currentState.repo,
+                branch = currentState.branch,
+                date = Date(),
+                comments = currentState.comments,
+                aiSummary = currentState.aiSummary,
+                projectType = currentState.projectType.name
+            )
+
+            val result = firestoreRepository.saveReviewHistory(historyItem)
+            
+            result.fold(
+                onSuccess = {
+                    _uiState.update { 
+                        it.copy(
+                            isSaving = false,
+                            error = null
+                        ) 
+                    }
+                },
+                onFailure = { e ->
+                    _uiState.update {
+                        it.copy(
+                            error = "Error al guardar en historial: ${e.message}",
+                            isSaving = false
+                        )
+                    }
+                }
+            )
+        } catch (e: Exception) {
+            _uiState.update {
+                it.copy(
+                    error = "Error al guardar: ${e.message}",
+                    isSaving = false
+                )
+            }
+        }
+    }
+
+    private suspend fun loadHistory() {
+        _uiState.update { it.copy(isLoading = true, error = null) }
+
+        try {
+            val result = firestoreRepository.loadReviewHistory()
+            
+            result.fold(
+                onSuccess = { history ->
+                    _uiState.update { 
+                        it.copy(
+                            history = history,
+                            isLoading = false
+                        ) 
+                    }
+                },
+                onFailure = { e ->
+                    _uiState.update {
+                        it.copy(
+                            error = "Error al cargar historial: ${e.message}",
+                            isLoading = false,
+                            history = emptyList()
+                        )
+                    }
+                }
+            )
+        } catch (e: Exception) {
+            _uiState.update {
+                it.copy(
+                    error = "Error al cargar historial: ${e.message}",
+                    isLoading = false,
+                    history = emptyList()
+                )
+            }
+        }
+    }
+
+    private fun resetState() {
+        _uiState.update { currentState ->
+            currentState.copy(
+                files = emptyList(),
+                currentFileContent = "",
+                currentFileName = "",
+                currentComment = "",
+                comments = emptyList(),
+                aiSummary = "",
+                error = null
+                // Keep owner, repo, branch, and projectType
+            )
         }
     }
 
@@ -1193,8 +1853,10 @@ private fun SeleccionScreenPreview() {
                     FileItem("file2.kt", "sha2")
                 )
             ),
-            onEvent = {}
-        ) { }
+            onEvent = {},
+            onNavigateToReview = {},
+            onNavigateToHistory = {}
+        )
     }
 }
 
