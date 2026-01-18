@@ -1261,7 +1261,9 @@ interface GitHubApi {
 
 // Firestore Repository
 class FirestoreRepository(private val firestore: FirebaseFirestore) {
-    private val appId = "code-reviewer-app" // You can make this dynamic based on app context
+    // AppId can be configured per build variant or from BuildConfig if needed
+    // For now using a constant value. For production, consider making this dynamic.
+    private val appId = "code-reviewer-app"
     
     suspend fun saveReviewHistory(historyItem: ReviewHistoryItem): Result<String> {
         return try {
@@ -1298,6 +1300,7 @@ class FirestoreRepository(private val firestore: FirebaseFirestore) {
             }
             
             // Sort in memory by date descending (no orderBy in Firestore query as per requirements)
+            // Note: For large datasets, consider implementing pagination or limiting query results
             val historyList = snapshot.documents.mapNotNull { doc ->
                 doc.data?.let { data ->
                     ReviewHistoryItem.fromMap(doc.id, data)
