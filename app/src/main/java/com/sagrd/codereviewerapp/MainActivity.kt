@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.NavigateBefore
@@ -85,7 +86,6 @@ import androidx.navigation.compose.rememberNavController
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.generationConfig
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import com.sagrd.codereviewerapp.navigation.Destinations
 import com.sagrd.codereviewerapp.ui.theme.CodeReviewerAppTheme
@@ -218,7 +218,7 @@ fun SeleccionScreenBody(
                 actions = {
                     IconButton(onClick = onNavigateToHistory) {
                         Icon(
-                            imageVector = Icons.Default.Refresh,
+                            imageVector = Icons.Default.History,
                             contentDescription = "Ver Historial",
                             tint = Color.White
                         )
@@ -1166,11 +1166,13 @@ data class ReviewHistoryItem(
     companion object {
         // Create from Firestore document
         fun fromMap(id: String, map: Map<String, Any>): ReviewHistoryItem {
-            val commentsList = (map["comments"] as? List<Map<String, String>>)?.map {
-                CodeComment(
-                    fileName = it["fileName"] ?: "",
-                    comment = it["comment"] ?: ""
-                )
+            val commentsList = (map["comments"] as? List<*>)?.mapNotNull { item ->
+                (item as? Map<*, *>)?.let { commentMap ->
+                    CodeComment(
+                        fileName = commentMap["fileName"] as? String ?: "",
+                        comment = commentMap["comment"] as? String ?: ""
+                    )
+                }
             } ?: emptyList()
             
             return ReviewHistoryItem(
@@ -1316,7 +1318,7 @@ class CodeReviewViewModel : ViewModel() {
 
     private val generativeModel = if (geminiApiKey.isNotBlank()) {
         GenerativeModel(
-            modelName = "gemini-flash-latest",
+            modelName = "gemini-1.5-flash",
             apiKey = geminiApiKey,
             generationConfig = generationConfig {
                 temperature = 0.7f
@@ -1333,7 +1335,11 @@ class CodeReviewViewModel : ViewModel() {
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .client(
             OkHttpClient.Builder()
-                .addInterceptor(HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY))
+                .apply {
+                    if (BuildConfig.DEBUG) {
+                        addInterceptor(HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY))
+                    }
+                }
                 .build()
         )
         .build()
