@@ -86,10 +86,17 @@ dependencies {
     // Gemini AI
     implementation(libs.generativeai)
 
-    // Firebase
+    // Firebase BoM (Controla las versiones de todas las librerías de Firebase)
     implementation(platform("com.google.firebase:firebase-bom:34.8.0"))
+
+    // Al usar el BoM, no necesitas especificar versiones en las siguientes:
     implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-analytics")
+
+    // Si usas corrutinas con Firebase (como en el repositorio que hicimos),
+    // asegúrate de tener también esta:
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
