@@ -1456,15 +1456,28 @@ class CodeReviewViewModel : ViewModel() {
         val owner = _uiState.value.owner
         val repo = _uiState.value.repo
         val branch = _uiState.value.branch
+        val projectType = _uiState.value.projectType
+
         _uiState.update { it.copy(isLoading = true, error = null) }
+
         try {
             val tree = withContext(Dispatchers.IO) {
                 api.getTree(owner, repo, branch, 1)
             }
+
             val filesList = tree.tree
-                .filter { it.type == "blob" && it.path.endsWith(".kt") }
+                .filter {
+                    it.type == "blob" && when (projectType) {
+                        ProjectType.KOTLIN -> it.path.endsWith(".kt")
+                        ProjectType.BLAZOR -> it.path.endsWith(".razor") ||
+                                it.path.endsWith(".cs") ||
+                                it.path.endsWith(".cshtml")
+                    }
+                }
                 .map { FileItem(it.path, it.sha) }
+
             _uiState.update { it.copy(files = filesList, isLoading = false) }
+
         } catch (e: Exception) {
             _uiState.update {
                 it.copy(
