@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Lightbulb
@@ -57,6 +59,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -93,7 +98,6 @@ import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFact
 import com.sagrd.codereviewerapp.navigation.Destinations
 import com.sagrd.codereviewerapp.ui.theme.CodeReviewerAppTheme
 import dev.snipme.highlights.Highlights
-import dev.snipme.highlights.model.SyntaxLanguage
 import dev.snipme.highlights.model.SyntaxThemes
 import dev.snipme.kodeview.view.CodeTextView
 import kotlinx.coroutines.Dispatchers
@@ -116,19 +120,13 @@ import retrofit2.http.Query
 import java.util.Base64
 import java.util.Date
 
-// Project Type Enum for dynamic syntax highlighting
-enum class ProjectType(val syntaxLanguage: SyntaxLanguage, val displayName: String) {
-    KOTLIN(SyntaxLanguage.KOTLIN, "Kotlin"),
-    BLAZOR(SyntaxLanguage.CSHARP, "Blazor (C#)")
-}
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             CodeReviewerAppTheme {
-                CodeReviewerApp()
+                CodeReviewerNavHost()
             }
         }
     }
@@ -136,7 +134,7 @@ class MainActivity : ComponentActivity() {
 
 
 @Composable
-fun CodeReviewerApp() {
+fun CodeReviewerNavHost() {
     val navController = rememberNavController()
     val viewModel: CodeReviewViewModel = viewModel()
 
@@ -175,6 +173,11 @@ fun CodeReviewerApp() {
                         navController.navigate(Destinations.Selection) {
                             popUpTo(Destinations.Selection) { inclusive = true }
                         }
+                    },
+                    onNavigateToHistory = {
+                        navController.navigate(Destinations.History) {
+                             popUpTo(Destinations.Selection) { inclusive = false }
+                        }
                     }
                 )
             }
@@ -183,6 +186,9 @@ fun CodeReviewerApp() {
                     viewModel = viewModel,
                     onNavigateBack = {
                         navController.popBackStack()
+                    },
+                    onNavigateToReview = {
+                        navController.navigate(Destinations.Review)
                     }
                 )
             }
@@ -198,6 +204,15 @@ fun SelectionScreen(
     onNavigateToHistory: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    // Safety net: If we are in SelectionScreen, we should NOT be editing an existing review.
+    // If editingReviewId is not null, it means we came from an abandoned edit session.
+    LaunchedEffect(Unit) {
+        if (uiState.editingReviewId != null) {
+            viewModel.onEvent(CodeReviewUiEvent.ResetState)
+        }
+    }
+
     SeleccionScreenBody(
         uiState = uiState,
         onEvent = viewModel::onEvent,
@@ -745,10 +760,18 @@ fun SyntaxHighlightedCode(code: String, projectType: ProjectType = ProjectType.K
 @Composable
 fun SummaryScreen(
     viewModel: CodeReviewViewModel,
-    onNavigateToSelection: () -> Unit
+    onNavigateToSelection: () -> Unit,
+    onNavigateToHistory: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+
+    LaunchedEffect(uiState.reviewSaved) {
+        if (uiState.reviewSaved) {
+            viewModel.onEvent(CodeReviewUiEvent.ConsumeReviewSavedEvent)
+            onNavigateToHistory()
+        }
+    }
 
     fun shareComments() {
         if (uiState.comments.isEmpty()) return
@@ -958,7 +981,8 @@ fun SummaryScreen(
 @Composable
 fun HistoryScreen(
     viewModel: CodeReviewViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToReview: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -1021,82 +1045,125 @@ fun HistoryScreen(
                 }
             } else {
                 LazyColumn {
-                    items(uiState.history) { historyItem ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                    items(uiState.history, key = { it.id }) { historyItem ->
+                        val dismissState = rememberSwipeToDismissBoxState(
+                            initialValue = SwipeToDismissBoxValue.Settled,
+                            confirmValueChange = {
+                                if (it == SwipeToDismissBoxValue.EndToStart) {
+                                    viewModel.onEvent(CodeReviewUiEvent.DeleteHistoryItem(historyItem))
+                                    true
+                                } else {
+                                    false
+                                }
+                            },
+                            positionalThreshold = { it * 0.5f }
+                        )
+
+                        SwipeToDismissBox(
+                            state = dismissState,
+                            backgroundContent = {
+                                val color = when (dismissState.dismissDirection) {
+                                    SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.errorContainer
+                                    else -> Color.Transparent
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(vertical = 8.dp)
+                                        .background(color)
+                                        .padding(horizontal = 16.dp),
+                                    contentAlignment = Alignment.CenterEnd
                                 ) {
-                                    Text(
-                                        text = "${historyItem.owner}/${historyItem.repo}",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Text(
-                                        text = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
-                                            .format(historyItem.date),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Eliminar",
+                                        tint = MaterialTheme.colorScheme.onErrorContainer
                                     )
                                 }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "Branch: ${historyItem.branch}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "${historyItem.comments.size} comentarios",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-
-                                if (historyItem.aiSummary.isNotBlank()) {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    HorizontalDivider()
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.Lightbulb,
-                                            contentDescription = "IA",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
+                            },
+                            content = {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp)
+                                        .clickable {
+                                            viewModel.onEvent(CodeReviewUiEvent.EditReview(historyItem))
+                                            onNavigateToReview()
+                                        },
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(16.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "${historyItem.owner}/${historyItem.repo}",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Text(
+                                                text = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
+                                                    .format(historyItem.date),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
                                         Text(
-                                            text = "Resumen de IA:",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.Bold
+                                            text = "Branch: ${historyItem.branch}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                         )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = "${historyItem.comments.size} comentarios",
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+        
+                                        if (historyItem.aiSummary.isNotBlank()) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            HorizontalDivider()
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Lightbulb,
+                                                    contentDescription = "IA",
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = "Resumen de IA:",
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            Text(
+                                                text = historyItem.aiSummary,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                modifier = Modifier.padding(top = 4.dp)
+                                            )
+                                        }
+        
+                                        // Show first 2 comments
+                                        historyItem.comments.take(2).forEach { comment ->
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = "• ${comment.fileName}: ${comment.comment.take(50)}${if (comment.comment.length > 50) "..." else ""}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                            )
+                                        }
                                     }
-                                    Text(
-                                        text = historyItem.aiSummary,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.padding(top = 4.dp)
-                                    )
-                                }
-
-                                // Show first 2 comments
-                                historyItem.comments.take(2).forEach { comment ->
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "• ${comment.fileName}: ${comment.comment.take(50)}${if (comment.comment.length > 50) "..." else ""}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                    )
                                 }
                             }
-                        }
+                        )
                     }
                 }
             }
@@ -1211,7 +1278,9 @@ data class CodeReviewUiState(
     val comments: List<CodeComment> = emptyList(),
     val projectType: ProjectType = ProjectType.KOTLIN,
     val aiSummary: String = "",
-    val history: List<ReviewHistoryItem> = emptyList()
+    val history: List<ReviewHistoryItem> = emptyList(),
+    val reviewSaved: Boolean = false,
+    val editingReviewId: String? = null
 ) {
     val selectedFiles: List<FileItem>
         get() = files.filter { it.isSelected }
@@ -1235,6 +1304,9 @@ sealed interface CodeReviewUiEvent {
     data object GenerateAISummary : CodeReviewUiEvent
     data object SaveReviewToHistory : CodeReviewUiEvent
     data object LoadHistory : CodeReviewUiEvent
+    data class DeleteHistoryItem(val item: ReviewHistoryItem) : CodeReviewUiEvent
+    data class EditReview(val item: ReviewHistoryItem) : CodeReviewUiEvent
+    data object ConsumeReviewSavedEvent : CodeReviewUiEvent
     data object ResetState : CodeReviewUiEvent
 }
 
@@ -1280,6 +1352,40 @@ class FirestoreRepository(private val firestore: FirebaseFirestore) {
                 docRef.set(historyItem.toMap()).await()
             }
             Result.success(docRef.id)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteReviewHistory(id: String): Result<Unit> {
+        return try {
+            withContext(Dispatchers.IO) {
+                firestore
+                    .collection("artifacts").document(appId)
+                    .collection("public").document("data")
+                    .collection("reviews")
+                    .document(id)
+                    .delete()
+                    .await()
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateReviewHistory(id: String, historyItem: ReviewHistoryItem): Result<Unit> {
+        return try {
+            withContext(Dispatchers.IO) {
+                firestore
+                    .collection("artifacts").document(appId)
+                    .collection("public").document("data")
+                    .collection("reviews")
+                    .document(id)
+                    .set(historyItem.toMap())
+                    .await()
+            }
+            Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -1446,6 +1552,22 @@ class CodeReviewViewModel : ViewModel() {
                 }
             }
 
+            is CodeReviewUiEvent.DeleteHistoryItem -> {
+                viewModelScope.launch {
+                    deleteHistoryItem(event.item)
+                }
+            }
+
+            is CodeReviewUiEvent.EditReview -> {
+                editReview(event.item)
+            }
+
+
+
+            is CodeReviewUiEvent.ConsumeReviewSavedEvent -> {
+                 resetState()
+            }
+
             is CodeReviewUiEvent.ResetState -> {
                 resetState()
             }
@@ -1500,6 +1622,26 @@ class CodeReviewViewModel : ViewModel() {
                 it.copy(
                     error = e.message ?: "Error loading file content",
                     currentFileContent = "",
+                    isLoading = false
+                )
+            }
+        }
+    }
+
+    private suspend fun deleteHistoryItem(item: ReviewHistoryItem) {
+        _uiState.update { it.copy(isLoading = true) }
+        val result = firestoreRepository.deleteReviewHistory(item.id)
+        if (result.isSuccess) {
+            _uiState.update { state ->
+                state.copy(
+                    history = state.history.filter { it.id != item.id },
+                    isLoading = false
+                )
+            }
+        } else {
+            _uiState.update {
+                it.copy(
+                    error = "Error al eliminar: ${result.exceptionOrNull()?.message}",
                     isLoading = false
                 )
             }
@@ -1712,14 +1854,19 @@ class CodeReviewViewModel : ViewModel() {
                 projectType = currentState.projectType.name
             )
 
-            val result = firestoreRepository.saveReviewHistory(historyItem)
+            val result = if (currentState.editingReviewId != null) {
+                firestoreRepository.updateReviewHistory(currentState.editingReviewId, historyItem)
+            } else {
+                firestoreRepository.saveReviewHistory(historyItem)
+            }
 
             result.fold(
                 onSuccess = {
                     _uiState.update {
                         it.copy(
                             isSaving = false,
-                            error = null
+                            error = null,
+                            reviewSaved = true
                         )
                     }
                 },
@@ -1778,6 +1925,35 @@ class CodeReviewViewModel : ViewModel() {
         }
     }
 
+    private fun editReview(item: ReviewHistoryItem) {
+        _uiState.update {
+            it.copy(
+                owner = item.owner,
+                repo = item.repo,
+                branch = item.branch,
+                projectType = try { ProjectType.valueOf(item.projectType) } catch (e: Exception) { ProjectType.KOTLIN },
+                comments = item.comments,
+                aiSummary = item.aiSummary,
+                editingReviewId = item.id,
+                files = emptyList(), // Reset files before loading
+                currentFileContent = "",
+                currentFileName = ""
+            )
+        }
+
+        viewModelScope.launch {
+            loadFiles()
+            // After loading files, select the ones that have comments
+            _uiState.update { currentState ->
+                val commentedFiles = currentState.comments.map { it.fileName }.toSet()
+                val updatedFiles = currentState.files.map { file ->
+                    if (commentedFiles.contains(file.path)) file.copy(isSelected = true) else file
+                }
+                currentState.copy(files = updatedFiles)
+            }
+        }
+    }
+
     private fun resetState() {
         _uiState.update { currentState ->
             currentState.copy(
@@ -1787,7 +1963,8 @@ class CodeReviewViewModel : ViewModel() {
                 currentComment = "",
                 comments = emptyList(),
                 aiSummary = "",
-                error = null
+                error = null,
+                editingReviewId = null
                 // Keep owner, repo, branch, and projectType
             )
         }
