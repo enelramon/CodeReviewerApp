@@ -175,13 +175,13 @@ fun ReviewScreen(
                             onClick = {
                                 // Guardar comentario y avanzar automáticamente
                                 viewModel.onEvent(CodeReviewUiEvent.AddComment)
-                                if (uiState.currentComment.isNotBlank()) {
-                                    if (currentFileIndex < selectedFiles.size - 1) {
-                                        currentFileIndex++
-                                    } else {
-                                        onNavigateToSummary()
-                                    }
+
+                                if (currentFileIndex < selectedFiles.size - 1) {
+                                    currentFileIndex++
+                                } else {
+                                    onNavigateToSummary()
                                 }
+
                             },
                             enabled = uiState.currentComment.isNotBlank()
                         ) {
