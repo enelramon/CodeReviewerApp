@@ -1,17 +1,17 @@
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
-    id("com.google.gms.google-services")
+    alias(libs.plugins.gms.googleServices)
 }
 
 android {
     namespace = "com.sagrd.codereviewerapp"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.sagrd.codereviewerapp"
@@ -46,8 +46,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlinOptions {
-        jvmTarget = "11"
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_11)
+        }
     }
     buildFeatures {
         compose = true
@@ -81,18 +83,18 @@ dependencies {
     implementation(libs.okhttp.logging.interceptor)
 
     // Syntax Highlighting
-    implementation("dev.snipme:kodeview:0.9.0")
+    implementation(libs.kodeview)
 
     // Gemini AI
     implementation(libs.generativeai)
 
     // Firebase BoM (Controla las versiones de todas las librerías de Firebase)
-    implementation(platform("com.google.firebase:firebase-bom:34.8.0"))
+    implementation(platform(libs.firebase.bom))
 
     // Al usar el BoM, no necesitas especificar versiones en las siguientes:
-    implementation("com.google.firebase:firebase-firestore")
-    implementation("com.google.firebase:firebase-auth")
-    implementation("com.google.firebase:firebase-analytics")
+    implementation(libs.firebase.firestore)
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.analytics)
 
     // Si usas corrutinas con Firebase (como en el repositorio que hicimos),
     // asegúrate de tener también esta:
