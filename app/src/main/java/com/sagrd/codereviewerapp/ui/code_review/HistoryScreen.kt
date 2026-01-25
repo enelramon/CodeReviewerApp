@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Lightbulb
@@ -38,8 +37,6 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
@@ -59,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import com.sagrd.codereviewerapp.data.CodeComment
 import com.sagrd.codereviewerapp.data.ProjectType
 import com.sagrd.codereviewerapp.data.ReviewHistoryItem
+import com.sagrd.codereviewerapp.ui.components.CodeReviewTopAppBar
 import com.sagrd.codereviewerapp.ui.theme.CodeReviewerAppTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -66,7 +64,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
     viewModel: CodeReviewViewModel,
@@ -104,21 +101,9 @@ fun HistoryScreenBody(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Historial de Revisiones") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Volver",
-                            tint = Color.White
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = Color.White
-                )
+            CodeReviewTopAppBar(
+                title = "Historial de Revisiones",
+                onNavigationClick = onNavigateBack
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -321,20 +306,11 @@ private fun ReviewItem(
                         fontWeight = FontWeight.Bold
                     )
                 }
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = historyItem.aiSummary,
                     style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-
-            // Show first 2 comments
-            historyItem.comments.take(2).forEach { comment ->
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "• ${comment.fileName}: ${comment.comment.take(50)}${if (comment.comment.length > 50) "..." else ""}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    maxLines = 2
                 )
             }
         }
@@ -344,27 +320,22 @@ private fun ReviewItem(
 @Preview(showBackground = true)
 @Composable
 fun HistoryScreenPreview() {
+    val sampleHistory = listOf(
+        ReviewHistoryItem(
+            id = "1",
+            owner = "enelramon",
+            repo = "CodeReviewerApp",
+            branch = "main",
+            date = Date(),
+            comments = listOf(CodeComment("File1.kt", "Comentario 1")),
+            aiSummary = "Este es un resumen de prueba",
+            projectType = ProjectType.KOTLIN.name
+        )
+    )
+
     CodeReviewerAppTheme {
         HistoryScreenBody(
-            uiState = CodeReviewUiState(
-                history = listOf(
-                    ReviewHistoryItem(
-                        id = "1",
-                        owner = "enelramon",
-                        repo = "CodeReviewerApp",
-                        branch = "master",
-                        date = Date(),
-                        comments = listOf(
-                            CodeComment(
-                                "MainActivity.kt",
-                                "Good job"
-                            )
-                        ),
-                        aiSummary = "Summary test",
-                        projectType = ProjectType.KOTLIN.name
-                    )
-                )
-            ),
+            uiState = CodeReviewUiState(history = sampleHistory),
             onEvent = {},
             onNavigateBack = {},
             onNavigateToReview = {},

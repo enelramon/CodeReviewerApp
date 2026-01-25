@@ -41,8 +41,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -58,10 +56,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.sagrd.codereviewerapp.data.FileItem
 import com.sagrd.codereviewerapp.data.ProjectType
+import com.sagrd.codereviewerapp.ui.components.CodeReviewTopAppBar
 import com.sagrd.codereviewerapp.ui.theme.CodeReviewerAppTheme
 
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SelectionScreen(
     viewModel: CodeReviewViewModel,
@@ -86,7 +84,7 @@ fun SelectionScreen(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SeleccionScreenBody(
     uiState: CodeReviewUiState,
@@ -96,21 +94,16 @@ fun SeleccionScreenBody(
 ) {
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Selección de Archivos") },
+            CodeReviewTopAppBar(
+                title = "Selección de Archivos",
                 actions = {
                     IconButton(onClick = onNavigateToHistory) {
                         Icon(
                             imageVector = Icons.Default.History,
-                            contentDescription = "Ver Historial",
-                            tint = Color.White
+                            contentDescription = "Ver Historial"
                         )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = Color.White
-                )
+                }
             )
         }
     ) { paddingValues ->
@@ -130,8 +123,8 @@ fun SeleccionScreenBody(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(ProjectType.values().size) { index ->
-                    val projectType = ProjectType.values()[index]
+                items(ProjectType.entries.size) { index ->
+                    val projectType = ProjectType.entries[index]
                     ToggleButton(
                         checked = uiState.projectType == projectType,
                         onCheckedChange = { onEvent(CodeReviewUiEvent.UpdateProjectType(projectType)) },
@@ -171,39 +164,9 @@ fun SeleccionScreenBody(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                 }
-
             }
             Spacer(modifier = Modifier.height(8.dp))
 
-            /* // Input fields for repo info
-             OutlinedTextField(
-                 value = uiState.owner,
-                 onValueChange = { onEvent(CodeReviewUiEvent.UpdateOwner(it)) },
-                 label = { Text("Owner") },
-                 leadingIcon = {
-                     Icon(
-                         imageVector = Icons.Default.Person,
-                         contentDescription = "Owner"
-                     )
-                 },
-                 modifier = Modifier.fillMaxWidth()
-             )
-             Spacer(modifier = Modifier.height(8.dp))
-             OutlinedTextField(
-                 value = uiState.repo,
-                 onValueChange = { onEvent(CodeReviewUiEvent.UpdateRepo(it)) },
-                 label = { Text("Repositorio") },
-                 leadingIcon = {
-                     Icon(
-                         imageVector = Icons.Default.Storage,
-                         contentDescription = "Repositorio"
-                     )
-                 },
-                 modifier = Modifier.fillMaxWidth()
-             )*/
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Branch selection
             BranchSelector(
                 branches = uiState.branches,
                 selectedBranch = uiState.branch,
@@ -354,9 +317,8 @@ fun FileListItem(
     onToggleSelection: (FileItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Separate filename from directory path
     val lastSlashIndex = file.path.lastIndexOf('/')
-    val directoryPath = if (lastSlashIndex > 0) file.path.substring(0, lastSlashIndex + 1) else ""
+    val directoryPath = file.path.take(lastSlashIndex + 1)
     val fileName = if (lastSlashIndex >= 0) file.path.substring(lastSlashIndex + 1) else file.path
 
     Row(
@@ -372,7 +334,6 @@ fun FileListItem(
         )
         Spacer(modifier = Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
-            // Filename - bold and more visible with file icon
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -390,7 +351,6 @@ fun FileListItem(
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
-            // Directory path - smaller and more subtle with folder icon
             if (directoryPath.isNotEmpty()) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

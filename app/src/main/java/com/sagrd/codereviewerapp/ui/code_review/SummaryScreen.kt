@@ -22,14 +22,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -42,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.sagrd.codereviewerapp.data.CodeComment
+import com.sagrd.codereviewerapp.ui.components.CodeReviewTopAppBar
 import com.sagrd.codereviewerapp.ui.theme.CodeReviewerAppTheme
 
 @Composable
@@ -101,7 +99,6 @@ fun SummaryScreen(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SummaryContent(
     uiState: CodeReviewUiState,
@@ -112,26 +109,18 @@ fun SummaryContent(
 ) {
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Resumen de Comentarios") },
+            CodeReviewTopAppBar(
+                title = "Resumen de Comentarios",
                 actions = {
                     if (uiState.comments.isNotEmpty()) {
                         IconButton(onClick = onShareComments) {
                             Icon(
                                 imageVector = Icons.Default.Share,
-                                contentDescription = "Compartir comentarios",
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(24.dp)
+                                contentDescription = "Compartir comentarios"
                             )
                         }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+                }
             )
         }
     ) { paddingValues ->
@@ -151,139 +140,161 @@ fun SummaryContent(
                 LazyColumn(
                     modifier = Modifier.weight(1f)
                 ) {
-                    // Generate AI Summary button inside scrollable list
                     item {
-                        Button(
-                            onClick = onGenerateAISummary,
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !uiState.isSuggesting && uiState.aiSummary.isBlank()
-                        ) {
-                            if (uiState.isSuggesting) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp,
-                                    color = Color.White
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                            }
-                            Icon(
-                                imageVector = Icons.Default.Lightbulb,
-                                contentDescription = "Generar Resumen IA",
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(if (uiState.isSuggesting) "Generando..." else "Generar Resumen con IA")
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
+                        GenerateAISummaryButtom(onGenerateAISummary, uiState)
                     }
 
-                    // AI Summary Card inside scrollable list
                     if (uiState.aiSummary.isNotBlank()) {
                         item {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                                )
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.Lightbulb,
-                                            contentDescription = "IA",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = "Resumen de IA",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = uiState.aiSummary,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
-                            }
+                            AiSummaryCard(uiState)
                         }
                     }
 
-                    // List of comments
                     items(uiState.comments) { comment ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp)
-                            ) {
-                                Text(
-                                    text = comment.fileName,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = comment.comment,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                        }
+                        CommentCard(comment)
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+            ActionButtons(onNewReview, onSaveReview, uiState)
+        }
+    }
+}
 
-            // Action buttons remain fixed at the bottom
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Button(
-                    onClick = onNewReview,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = "Cancelar",
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Cancelar")
-                }
-                Spacer(modifier = Modifier.width(4.dp))
-                Button(
-                    onClick = onSaveReview,
-                    enabled = uiState.comments.isNotEmpty() && !uiState.isSaving
-                ) {
-                    if (uiState.isSaving) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                            color = Color.White
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Guardando...")
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.Save,
-                            contentDescription = "Guardar",
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Guardar")
-                    }
-                }
+@Composable
+private fun GenerateAISummaryButtom(
+    onGenerateAISummary: () -> Unit,
+    uiState: CodeReviewUiState
+) {
+    Button(
+        onClick = onGenerateAISummary,
+        modifier = Modifier.fillMaxWidth(),
+        enabled = !uiState.isSuggesting && uiState.aiSummary.isBlank()
+    ) {
+        if (uiState.isSuggesting) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                strokeWidth = 2.dp,
+                color = Color.White
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+        Icon(
+            imageVector = Icons.Default.Lightbulb,
+            contentDescription = "Generar Resumen IA",
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(if (uiState.isSuggesting) "Generando..." else "Generar Resumen con IA")
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+}
+
+@Composable
+private fun AiSummaryCard(uiState: CodeReviewUiState) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Lightbulb,
+                    contentDescription = "IA",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Resumen de IA",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = uiState.aiSummary,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+    }
+}
+
+@Composable
+private fun CommentCard(comment: CodeComment) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = comment.fileName,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = comment.comment,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+    }
+}
+
+@Composable
+private fun ActionButtons(
+    onNewReview: () -> Unit,
+    onSaveReview: () -> Unit,
+    uiState: CodeReviewUiState
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Button(
+            onClick = onNewReview,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Refresh,
+                contentDescription = "Cancelar",
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Cancelar")
+        }
+        Spacer(modifier = Modifier.width(4.dp))
+        Button(
+            onClick = onSaveReview,
+            enabled = uiState.comments.isNotEmpty() && !uiState.isSaving
+        ) {
+            if (uiState.isSaving) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Guardando...")
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Save,
+                    contentDescription = "Guardar",
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Guardar")
             }
         }
     }
@@ -317,4 +328,3 @@ fun SummaryScreenPreview() {
         )
     }
 }
-

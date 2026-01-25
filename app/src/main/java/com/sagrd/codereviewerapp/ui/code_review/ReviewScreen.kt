@@ -23,14 +23,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -46,6 +43,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.sagrd.codereviewerapp.data.FileItem
 import com.sagrd.codereviewerapp.data.ProjectType
+import com.sagrd.codereviewerapp.ui.components.CodeReviewTopAppBar
 import com.sagrd.codereviewerapp.ui.theme.CodeReviewerAppTheme
 import dev.snipme.highlights.Highlights
 import dev.snipme.highlights.model.SyntaxThemes
@@ -58,7 +56,7 @@ fun ReviewScreen(
     onNavigateBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    ReviewContent(
+    ReviewScreenBody(
         uiState = uiState,
         onEvent = viewModel::onEvent,
         onNavigateToSummary = onNavigateToSummary,
@@ -66,9 +64,8 @@ fun ReviewScreen(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReviewContent(
+fun ReviewScreenBody(
     uiState: CodeReviewUiState,
     onEvent: (CodeReviewUiEvent) -> Unit,
     onNavigateToSummary: () -> Unit,
@@ -87,13 +84,7 @@ fun ReviewContent(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Revisión de Código") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = Color.White
-                )
-            )
+            CodeReviewTopAppBar(title = "Revisión de Código")
         }
     ) { paddingValues ->
         Column(
@@ -292,7 +283,7 @@ fun ReviewScreenPreview() {
     )
 
     CodeReviewerAppTheme {
-        ReviewContent(
+        ReviewScreenBody(
             uiState = uiState,
             onEvent = {},
             onNavigateToSummary = {},
