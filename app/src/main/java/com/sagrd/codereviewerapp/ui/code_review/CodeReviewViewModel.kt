@@ -17,6 +17,7 @@ import com.sagrd.codereviewerapp.data.GitHubApi
 import com.sagrd.codereviewerapp.data.GitHubRepository
 import com.sagrd.codereviewerapp.data.ProjectType
 import com.sagrd.codereviewerapp.data.ReviewHistoryItem
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,50 +32,19 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import java.util.Date
+import javax.inject.Inject
 
-// ViewModel
-class CodeReviewViewModel : ViewModel() {
-    // Gemini API key - In production, this should be stored securely
-    private val geminiApiKey: String = BuildConfig.GEMINI_API_KEY
-
-    private val generativeModel = if (geminiApiKey.isNotBlank()) {
-        GenerativeModel(
-            modelName = "gemini-2.5-flash-lite",
-            apiKey = geminiApiKey,
-            generationConfig = generationConfig {
-                temperature = 0.7f
-                topK = 40
-                topP = 0.95f
-                maxOutputTokens = 1024
-            }
-        )
-    } else null
-
-    private val json = Json { ignoreUnknownKeys = true }
-    private val retrofit = Retrofit.Builder()
-        .baseUrl("https://api.github.com/")
-        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
-        .client(
-            OkHttpClient.Builder()
-                .apply {
-                    if (BuildConfig.DEBUG) {
-                        addInterceptor(HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY))
-                    }
-                }
-                .build()
-        )
-        .build()
-
-    private val api = retrofit.create(GitHubApi::class.java)
-    private val githubRepository = GitHubRepository(api)
-    private val firestoreRepository = FirestoreRepository(FirebaseFirestore.getInstance())
+@HiltViewModel
+class CodeReviewViewModel @Inject constructor(
+    private val githubRepository: GitHubRepository,
+    private val firestoreRepository: FirestoreRepository,
+    private val generativeModel: GenerativeModel?
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CodeReviewUiState())
     val uiState: StateFlow<CodeReviewUiState> = _uiState.asStateFlow()
 
     private val auth = Firebase.auth
-    private val db = Firebase.firestore
-    private val appId = "code-reviewer-app"
 
     private suspend fun ensureAuth() {
         if (auth.currentUser == null) {
