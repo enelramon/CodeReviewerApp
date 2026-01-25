@@ -42,13 +42,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.sagrd.codereviewerapp.data.FileItem
 import com.sagrd.codereviewerapp.data.ProjectType
+import com.sagrd.codereviewerapp.ui.theme.CodeReviewerAppTheme
 import dev.snipme.highlights.Highlights
 import dev.snipme.highlights.model.SyntaxThemes
 import dev.snipme.kodeview.view.CodeTextView
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReviewScreen(
     viewModel: CodeReviewViewModel,
@@ -56,14 +58,30 @@ fun ReviewScreen(
     onNavigateBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    ReviewContent(
+        uiState = uiState,
+        onEvent = viewModel::onEvent,
+        onNavigateToSummary = onNavigateToSummary,
+        onNavigateBack = onNavigateBack
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ReviewContent(
+    uiState: CodeReviewUiState,
+    onEvent: (CodeReviewUiEvent) -> Unit,
+    onNavigateToSummary: () -> Unit,
+    onNavigateBack: () -> Unit
+) {
     val selectedFiles = uiState.selectedFiles
     var currentFileIndex by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(currentFileIndex) {
         if (selectedFiles.isNotEmpty() && currentFileIndex < selectedFiles.size) {
-            viewModel.onEvent(CodeReviewUiEvent.LoadFileContent(selectedFiles[currentFileIndex]))
+            onEvent(CodeReviewUiEvent.LoadFileContent(selectedFiles[currentFileIndex]))
             // Load existing comment for current file
-            viewModel.onEvent(CodeReviewUiEvent.LoadCommentForFile(selectedFiles[currentFileIndex].path))
+            onEvent(CodeReviewUiEvent.LoadCommentForFile(selectedFiles[currentFileIndex].path))
         }
     }
 
@@ -136,7 +154,7 @@ fun ReviewScreen(
                 // Comment field
                 OutlinedTextField(
                     value = uiState.currentComment,
-                    onValueChange = { viewModel.onEvent(CodeReviewUiEvent.UpdateComment(it)) },
+                    onValueChange = { onEvent(CodeReviewUiEvent.UpdateComment(it)) },
                     label = { Text("Comentario") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3
@@ -154,7 +172,7 @@ fun ReviewScreen(
                     ) {
                         Button(
                             onClick = {
-                                viewModel.onEvent(CodeReviewUiEvent.SuggestComment)
+                                onEvent(CodeReviewUiEvent.SuggestComment)
                             },
                             enabled = !uiState.isSuggesting && !uiState.isLoading
                         ) {
@@ -175,7 +193,7 @@ fun ReviewScreen(
                         Button(
                             onClick = {
                                 // Guardar comentario y avanzar automáticamente
-                                viewModel.onEvent(CodeReviewUiEvent.AddComment)
+                                onEvent(CodeReviewUiEvent.AddComment)
 
                                 if (currentFileIndex < selectedFiles.size - 1) {
                                     currentFileIndex++
@@ -252,5 +270,33 @@ fun SyntaxHighlightedCode(code: String, projectType: ProjectType = ProjectType.K
             .padding(16.dp)
     ) {
         CodeTextView(highlights = highlights.value)
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun ReviewScreenPreview() {
+    val sampleFiles = listOf(
+        FileItem("MainActivity.kt", "sha1", true),
+        FileItem("ReviewScreen.kt", "sha2", true)
+    )
+    val uiState = CodeReviewUiState(
+        files = sampleFiles,
+        currentFileName = "MainActivity.kt",
+        currentFileContent = """
+            fun main() {
+                println("Hello, Code Reviewer!")
+            }
+        """.trimIndent(),
+        currentComment = "Este código se ve bien."
+    )
+
+    CodeReviewerAppTheme {
+        ReviewContent(
+            uiState = uiState,
+            onEvent = {},
+            onNavigateToSummary = {},
+            onNavigateBack = {}
+        )
     }
 }
