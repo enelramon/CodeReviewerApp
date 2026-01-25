@@ -1,6 +1,5 @@
 package com.sagrd.codereviewerapp.ui.code_review
 
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.ai.client.generativeai.GenerativeModel
@@ -15,6 +14,7 @@ import com.sagrd.codereviewerapp.data.CodeComment
 import com.sagrd.codereviewerapp.data.FileItem
 import com.sagrd.codereviewerapp.data.FirestoreRepository
 import com.sagrd.codereviewerapp.data.GitHubApi
+import com.sagrd.codereviewerapp.data.GitHubRepository
 import com.sagrd.codereviewerapp.data.ProjectType
 import com.sagrd.codereviewerapp.data.ReviewHistoryItem
 import kotlinx.coroutines.Dispatchers
@@ -30,7 +30,6 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
-import java.util.Base64
 import java.util.Date
 
 // ViewModel
@@ -67,6 +66,7 @@ class CodeReviewViewModel : ViewModel() {
         .build()
 
     private val api = retrofit.create(GitHubApi::class.java)
+    private val githubRepository = GitHubRepository(api)
     private val firestoreRepository = FirestoreRepository(FirebaseFirestore.getInstance())
 
     private val _uiState = MutableStateFlow(CodeReviewUiState())
@@ -203,32 +203,19 @@ class CodeReviewViewModel : ViewModel() {
 
         _uiState.update { it.copy(isLoading = true, error = null) }
 
-        try {
-            val tree = withContext(Dispatchers.IO) {
-                api.getTree(owner, repo, branch, 1)
-            }
-
-            val filesList = tree.tree
-                .filter {
-                    it.type == "blob" && when (projectType) {
-                        ProjectType.KOTLIN -> it.path.endsWith(".kt")
-                        ProjectType.BLAZOR -> it.path.endsWith(".razor") ||
-                                it.path.endsWith(".cs") ||
-                                it.path.endsWith(".cshtml")
-                    }
+        githubRepository.getFiles(owner, repo, branch, projectType).fold(
+            onSuccess = { filesList ->
+                _uiState.update { it.copy(files = filesList, isLoading = false) }
+            },
+            onFailure = { e ->
+                _uiState.update {
+                    it.copy(
+                        error = e.message ?: "Error loading files",
+                        isLoading = false
+                    )
                 }
-                .map { FileItem(it.path, it.sha) }
-
-            _uiState.update { it.copy(files = filesList, isLoading = false) }
-
-        } catch (e: Exception) {
-            _uiState.update {
-                it.copy(
-                    error = e.message ?: "Error loading files",
-                    isLoading = false
-                )
             }
-        }
+        )
     }
 
     private suspend fun loadFileContent(file: FileItem) {
@@ -241,25 +228,21 @@ class CodeReviewViewModel : ViewModel() {
                 currentFileName = file.path
             )
         }
-        try {
-            val blob = withContext(Dispatchers.IO) {
-                api.getBlob(owner, repo, file.sha)
+        
+        githubRepository.getFileContent(owner, repo, file.sha).fold(
+            onSuccess = { content ->
+                _uiState.update { it.copy(currentFileContent = content, isLoading = false) }
+            },
+            onFailure = { e ->
+                _uiState.update {
+                    it.copy(
+                        error = e.message ?: "Error loading file content",
+                        currentFileContent = "",
+                        isLoading = false
+                    )
+                }
             }
-            val decoded = if (blob.encoding == "base64") {
-                String(Base64.getDecoder().decode(blob.content.replace("\\s".toRegex(), "")))
-            } else {
-                blob.content
-            }
-            _uiState.update { it.copy(currentFileContent = decoded, isLoading = false) }
-        } catch (e: Exception) {
-            _uiState.update {
-                it.copy(
-                    error = e.message ?: "Error loading file content",
-                    currentFileContent = "",
-                    isLoading = false
-                )
-            }
-        }
+        )
     }
 
     private suspend fun deleteHistoryItem(item: ReviewHistoryItem) {
@@ -659,30 +642,30 @@ class CodeReviewViewModel : ViewModel() {
         }
 
         _uiState.update { it.copy(isLoadingBranches = true, error = null) }
-        try {
-            val branchesList = withContext(Dispatchers.IO) {
-                api.getBranches(owner, repo)
+        
+        githubRepository.getBranches(owner, repo).fold(
+            onSuccess = { branchNames ->
+                _uiState.update {
+                    it.copy(
+                        branches = branchNames,
+                        isLoadingBranches = false,
+                        // Set first branch as default if current branch is not in the list
+                        branch = if (branchNames.isNotEmpty() && !branchNames.contains(it.branch)) {
+                            branchNames.first()
+                        } else {
+                            it.branch
+                        }
+                    )
+                }
+            },
+            onFailure = { e ->
+                _uiState.update {
+                    it.copy(
+                        error = e.message ?: "Error al cargar branches",
+                        isLoadingBranches = false
+                    )
+                }
             }
-            val branchNames = branchesList.map { it.name }
-            _uiState.update {
-                it.copy(
-                    branches = branchNames,
-                    isLoadingBranches = false,
-                    // Set first branch as default if current branch is not in the list
-                    branch = if (branchNames.isNotEmpty() && !branchNames.contains(it.branch)) {
-                        branchNames.first()
-                    } else {
-                        it.branch
-                    }
-                )
-            }
-        } catch (e: Exception) {
-            _uiState.update {
-                it.copy(
-                    error = e.message ?: "Error al cargar branches",
-                    isLoadingBranches = false
-                )
-            }
-        }
+        )
     }
 }
