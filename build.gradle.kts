@@ -3,5 +3,8 @@ plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.compose) apply false
-    alias(libs.plugins.gms.googleServices)
+    alias(libs.plugins.devtools.ksp) apply false//aqui se busca la ultima version https://github.com/google/ksp/releases
+
+    alias( libs.plugins.gms.googleServices) apply false
+    id("com.google.dagger.hilt.android") version "2.59" apply false
 }
