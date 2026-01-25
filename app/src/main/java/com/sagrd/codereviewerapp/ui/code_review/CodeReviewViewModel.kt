@@ -3,17 +3,9 @@ package com.sagrd.codereviewerapp.ui.code_review
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.generationConfig
-import com.google.firebase.Firebase
-import com.google.firebase.auth.auth
-import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.firestore
-import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
-import com.sagrd.codereviewerapp.BuildConfig
 import com.sagrd.codereviewerapp.data.CodeComment
 import com.sagrd.codereviewerapp.data.FileItem
 import com.sagrd.codereviewerapp.data.FirestoreRepository
-import com.sagrd.codereviewerapp.data.GitHubApi
 import com.sagrd.codereviewerapp.data.GitHubRepository
 import com.sagrd.codereviewerapp.data.ProjectType
 import com.sagrd.codereviewerapp.data.ReviewHistoryItem
@@ -24,13 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
-import retrofit2.Retrofit
 import java.util.Date
 import javax.inject.Inject
 
@@ -44,18 +30,6 @@ class CodeReviewViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(CodeReviewUiState())
     val uiState: StateFlow<CodeReviewUiState> = _uiState.asStateFlow()
 
-    private val auth = Firebase.auth
-
-    private suspend fun ensureAuth() {
-        if (auth.currentUser == null) {
-            auth.signInAnonymously().await()
-        }
-    }
-    init {
-        viewModelScope.launch {
-            ensureAuth()
-        }
-    }
     fun onEvent(event: CodeReviewUiEvent) {
         when (event) {
             is CodeReviewUiEvent.UpdateRepositoryUrl -> {
@@ -86,7 +60,6 @@ class CodeReviewViewModel @Inject constructor(
             }
 
             is CodeReviewUiEvent.LoadFiles -> {
-                // Launch a coroutine to perform the suspend operation
                 viewModelScope.launch {
                     loadFiles()
                 }
@@ -154,7 +127,6 @@ class CodeReviewViewModel @Inject constructor(
                 editReview(event.item)
             }
 
-
             is CodeReviewUiEvent.ConsumeReviewSavedEvent -> {
                  resetState()
             }
@@ -163,6 +135,38 @@ class CodeReviewViewModel @Inject constructor(
                 resetState()
             }
         }
+    }
+
+    private fun parseGitHubUrl(url: String) {
+        // github.com/owner/repo
+        val regex = Regex("github\\.com/([^/]+)/([^/]+)")
+        val match = regex.find(url)
+        if (match != null) {
+            val (owner, repo) = match.destructured
+            _uiState.update { it.copy(owner = owner, repo = repo) }
+            viewModelScope.launch {
+                loadBranches()
+            }
+        }
+    }
+
+    private suspend fun loadBranches() {
+        val owner = _uiState.value.owner
+        val repo = _uiState.value.repo
+        if (owner.isBlank() || repo.isBlank()) return
+
+        _uiState.update { it.copy(isLoading = true, error = null) }
+        githubRepository.getBranches(owner, repo).fold(
+            onSuccess = { branches ->
+                _uiState.update { it.copy(branches = branches, isLoading = false) }
+                if (branches.isNotEmpty() && _uiState.value.branch.isBlank()) {
+                    _uiState.update { it.copy(branch = branches.first()) }
+                }
+            },
+            onFailure = { e ->
+                _uiState.update { it.copy(error = "Error al cargar ramas: ${e.message}", isLoading = false) }
+            }
+        )
     }
 
     private suspend fun loadFiles() {
@@ -483,8 +487,8 @@ class CodeReviewViewModel @Inject constructor(
                 onFailure = { e ->
                     _uiState.update {
                         it.copy(
-                            error = "Error al guardar en historial: ${e.message}",
-                            isSaving = false
+                            isSaving = false,
+                            error = "Error al guardar en el historial: ${e.message}"
                         )
                     }
                 }
@@ -492,8 +496,8 @@ class CodeReviewViewModel @Inject constructor(
         } catch (e: Exception) {
             _uiState.update {
                 it.copy(
-                    error = "Error al guardar: ${e.message}",
-                    isSaving = false
+                    isSaving = false,
+                    error = "Error: ${e.message}"
                 )
             }
         }
@@ -501,38 +505,19 @@ class CodeReviewViewModel @Inject constructor(
 
     private suspend fun loadHistory() {
         _uiState.update { it.copy(isLoading = true, error = null) }
-
-        try {
-            val result = firestoreRepository.loadReviewHistory()
-
-            result.fold(
-                onSuccess = { history ->
-                    _uiState.update {
-                        it.copy(
-                            history = history,
-                            isLoading = false
-                        )
-                    }
-                },
-                onFailure = { e ->
-                    _uiState.update {
-                        it.copy(
-                            error = "Error al cargar historial: ${e.message}",
-                            isLoading = false,
-                            history = emptyList()
-                        )
-                    }
+        firestoreRepository.loadReviewHistory().fold(
+            onSuccess = { history ->
+                _uiState.update { it.copy(history = history, isLoading = false) }
+            },
+            onFailure = { e ->
+                _uiState.update {
+                    it.copy(
+                        error = "Error al cargar el historial: ${e.message}",
+                        isLoading = false
+                    )
                 }
-            )
-        } catch (e: Exception) {
-            _uiState.update {
-                it.copy(
-                    error = "Error al cargar historial: ${e.message}",
-                    isLoading = false,
-                    history = emptyList()
-                )
             }
-        }
+        )
     }
 
     private fun editReview(item: ReviewHistoryItem) {
@@ -541,101 +526,24 @@ class CodeReviewViewModel @Inject constructor(
                 owner = item.owner,
                 repo = item.repo,
                 branch = item.branch,
-                projectType = try { ProjectType.valueOf(item.projectType) } catch (e: Exception) { ProjectType.KOTLIN },
                 comments = item.comments,
-                aiSummary = item.aiSummary,
-                editingReviewId = item.id,
-                files = emptyList(), // Reset files before loading
-                currentFileContent = "",
-                currentFileName = ""
+                aiSummary = item.aiSummary ?: "",
+                projectType = ProjectType.valueOf(item.projectType),
+                editingReviewId = item.id
             )
-        }
-
-        viewModelScope.launch {
-            loadFiles()
-            // After loading files, select the ones that have comments
-            _uiState.update { currentState ->
-                val commentedFiles = currentState.comments.map { it.fileName }.toSet()
-                val updatedFiles = currentState.files.map { file ->
-                    if (commentedFiles.contains(file.path)) file.copy(isSelected = true) else file
-                }
-                currentState.copy(files = updatedFiles)
-            }
         }
     }
 
     private fun resetState() {
-        _uiState.update { currentState ->
-            currentState.copy(
-                files = emptyList(),
-                currentFileContent = "",
-                currentFileName = "",
-                currentComment = "",
-                comments = emptyList(),
-                aiSummary = "",
-                error = null,
-                editingReviewId = null
-                // Keep owner, repo, branch, and projectType
+        _uiState.update {
+            CodeReviewUiState().copy(
+                repositoryUrl = it.repositoryUrl,
+                owner = it.owner,
+                repo = it.repo,
+                branches = it.branches,
+                branch = it.branch,
+                projectType = it.projectType
             )
         }
-    }
-
-    private fun parseGitHubUrl(url: String) {
-        // Parse GitHub URL to extract owner and repo
-        // Supports formats:
-        // - https://github.com/owner/repo
-        // - https://github.com/owner/repo.git
-        // - github.com/owner/repo
-        val regex = Regex("""(?:https?://)?(?:www\.)?github\.com/([^/]+)/([^/\.]+)(?:\.git)?""")
-        val matchResult = regex.find(url)
-
-        if (matchResult != null) {
-            val (owner, repo) = matchResult.destructured
-            _uiState.update {
-                it.copy(
-                    owner = owner,
-                    repo = repo
-                )
-            }
-        }
-    }
-
-    private suspend fun loadBranches() {
-        val owner = _uiState.value.owner
-        val repo = _uiState.value.repo
-
-        if (owner.isBlank() || repo.isBlank()) {
-            _uiState.update {
-                it.copy(error = "Owner y Repo son requeridos para buscar branches")
-            }
-            return
-        }
-
-        _uiState.update { it.copy(isLoadingBranches = true, error = null) }
-        
-        githubRepository.getBranches(owner, repo).fold(
-            onSuccess = { branchNames ->
-                _uiState.update {
-                    it.copy(
-                        branches = branchNames,
-                        isLoadingBranches = false,
-                        // Set first branch as default if current branch is not in the list
-                        branch = if (branchNames.isNotEmpty() && !branchNames.contains(it.branch)) {
-                            branchNames.first()
-                        } else {
-                            it.branch
-                        }
-                    )
-                }
-            },
-            onFailure = { e ->
-                _uiState.update {
-                    it.copy(
-                        error = e.message ?: "Error al cargar branches",
-                        isLoadingBranches = false
-                    )
-                }
-            }
-        )
     }
 }

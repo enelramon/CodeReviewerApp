@@ -3,6 +3,7 @@ package com.sagrd.codereviewerapp.di
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.generationConfig
 import com.google.firebase.Firebase
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.firestore
@@ -37,7 +38,7 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideFirestoreRepository(db: FirebaseFirestore) = FirestoreRepository(db)
+    fun provideFirestoreRepository(db: FirebaseFirestore, auth: FirebaseAuth) = FirestoreRepository(db, auth)
 
     @Provides
     @Singleton

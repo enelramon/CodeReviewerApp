@@ -1,18 +1,29 @@
 package com.sagrd.codereviewerapp.data
 
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.sagrd.codereviewerapp.data.ReviewHistoryItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
-class FirestoreRepository(private val firestore: FirebaseFirestore) {
+class FirestoreRepository(
+    private val firestore: FirebaseFirestore,
+    private val auth: FirebaseAuth
+) {
     // AppId can be configured per build variant or from BuildConfig if needed
     // For now using a constant value. For production, consider making this dynamic.
     private val appId = "code-reviewer-app"
 
+    private suspend fun ensureAuth() {
+        if (auth.currentUser == null) {
+            auth.signInAnonymously().await()
+        }
+    }
+
     suspend fun saveReviewHistory(historyItem: ReviewHistoryItem): Result<String> {
         return try {
+            ensureAuth()
             val docRef = firestore
                 .collection("artifacts").document(appId)
                 .collection("public").document("data")
@@ -30,6 +41,7 @@ class FirestoreRepository(private val firestore: FirebaseFirestore) {
 
     suspend fun deleteReviewHistory(id: String): Result<Unit> {
         return try {
+            ensureAuth()
             withContext(Dispatchers.IO) {
                 firestore
                     .collection("artifacts").document(appId)
@@ -47,6 +59,7 @@ class FirestoreRepository(private val firestore: FirebaseFirestore) {
 
     suspend fun updateReviewHistory(id: String, historyItem: ReviewHistoryItem): Result<Unit> {
         return try {
+            ensureAuth()
             withContext(Dispatchers.IO) {
                 firestore
                     .collection("artifacts").document(appId)
@@ -64,6 +77,7 @@ class FirestoreRepository(private val firestore: FirebaseFirestore) {
 
     suspend fun loadReviewHistory(): Result<List<ReviewHistoryItem>> {
         return try {
+            ensureAuth()
             val snapshot = withContext(Dispatchers.IO) {
                 firestore
                     .collection("artifacts").document(appId)
@@ -87,4 +101,3 @@ class FirestoreRepository(private val firestore: FirebaseFirestore) {
         }
     }
 }
-
