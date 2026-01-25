@@ -1,4 +1,4 @@
-package com.sagrd.codereviewerapp
+package com.sagrd.codereviewerapp.data
 
 data class CodeComment(
     val fileName: String,

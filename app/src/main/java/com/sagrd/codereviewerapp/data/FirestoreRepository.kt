@@ -1,6 +1,7 @@
-package com.sagrd.codereviewerapp
+package com.sagrd.codereviewerapp.data
 
 import com.google.firebase.firestore.FirebaseFirestore
+import com.sagrd.codereviewerapp.data.ReviewHistoryItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -76,7 +77,7 @@ class FirestoreRepository(private val firestore: FirebaseFirestore) {
             // Note: For large datasets, consider implementing pagination or limiting query results
             val historyList = snapshot.documents.mapNotNull { doc ->
                 doc.data?.let { data ->
-                    ReviewHistoryItem.fromMap(doc.id, data)
+                    ReviewHistoryItem.Companion.fromMap(doc.id, data)
                 }
             }.sortedByDescending { it.date }
 

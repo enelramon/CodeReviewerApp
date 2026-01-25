@@ -1,6 +1,7 @@
-package com.sagrd.codereviewerapp
+package com.sagrd.codereviewerapp.data
 
 import com.google.firebase.Timestamp
+import com.sagrd.codereviewerapp.data.CodeComment
 import java.util.Date
 import kotlin.collections.get
 

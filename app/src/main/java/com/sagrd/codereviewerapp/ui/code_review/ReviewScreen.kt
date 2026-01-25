@@ -1,4 +1,4 @@
-package com.sagrd.codereviewerapp
+package com.sagrd.codereviewerapp.ui.code_review
 
 
 import androidx.compose.foundation.layout.Arrangement
@@ -43,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.sagrd.codereviewerapp.data.ProjectType
 import dev.snipme.highlights.Highlights
 import dev.snipme.highlights.model.SyntaxThemes
 import dev.snipme.kodeview.view.CodeTextView

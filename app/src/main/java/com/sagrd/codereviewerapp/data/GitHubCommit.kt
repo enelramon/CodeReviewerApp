@@ -1,4 +1,4 @@
-package com.sagrd.codereviewerapp
+package com.sagrd.codereviewerapp.data
 
 import kotlinx.serialization.Serializable
 

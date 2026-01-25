@@ -1,4 +1,4 @@
-package com.sagrd.codereviewerapp.navigation
+package com.sagrd.codereviewerapp.ui.navigation
 
 
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,8 +10,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.sagrd.codereviewerapp.CodeReviewViewModel
-import com.sagrd.codereviewerapp.*
+import com.sagrd.codereviewerapp.ui.code_review.CodeReviewViewModel
+import com.sagrd.codereviewerapp.ui.code_review.HistoryScreen
+import com.sagrd.codereviewerapp.ui.code_review.ReviewScreen
+import com.sagrd.codereviewerapp.ui.code_review.SelectionScreen
+import com.sagrd.codereviewerapp.ui.code_review.SummaryScreen
 
 @Composable
 fun CodeReviewerNavHost() {
@@ -55,7 +58,7 @@ fun CodeReviewerNavHost() {
                     },
                     onNavigateToHistory = {
                         navController.navigate(Destinations.History) {
-                             popUpTo(Destinations.Selection) { inclusive = false }
+                            popUpTo(Destinations.Selection) { inclusive = false }
                         }
                     }
                 )
@@ -68,6 +71,9 @@ fun CodeReviewerNavHost() {
                     },
                     onNavigateToReview = {
                         navController.navigate(Destinations.Review)
+                    },
+                    onNavigateToSummary = {
+                        navController.navigate(Destinations.Summary)
                     }
                 )
             }

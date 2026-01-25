@@ -1,4 +1,8 @@
-package com.sagrd.codereviewerapp
+package com.sagrd.codereviewerapp.ui.code_review
+
+import com.sagrd.codereviewerapp.data.FileItem
+import com.sagrd.codereviewerapp.data.ProjectType
+import com.sagrd.codereviewerapp.data.ReviewHistoryItem
 
 // UI Events
 sealed interface CodeReviewUiEvent {
@@ -19,6 +23,7 @@ sealed interface CodeReviewUiEvent {
     data object SaveReviewToHistory : CodeReviewUiEvent
     data object LoadHistory : CodeReviewUiEvent
     data class DeleteHistoryItem(val item: ReviewHistoryItem) : CodeReviewUiEvent
+    data object UndoDeleteHistoryItem : CodeReviewUiEvent
     data class EditReview(val item: ReviewHistoryItem) : CodeReviewUiEvent
     data object ConsumeReviewSavedEvent : CodeReviewUiEvent
     data object ResetState : CodeReviewUiEvent

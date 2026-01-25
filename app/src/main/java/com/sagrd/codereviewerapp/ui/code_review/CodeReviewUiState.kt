@@ -1,4 +1,9 @@
-package com.sagrd.codereviewerapp
+package com.sagrd.codereviewerapp.ui.code_review
+
+import com.sagrd.codereviewerapp.data.CodeComment
+import com.sagrd.codereviewerapp.data.FileItem
+import com.sagrd.codereviewerapp.data.ProjectType
+import com.sagrd.codereviewerapp.data.ReviewHistoryItem
 
 // UI State
 data class CodeReviewUiState(
@@ -21,7 +26,8 @@ data class CodeReviewUiState(
     val aiSummary: String = "",
     val history: List<ReviewHistoryItem> = emptyList(),
     val reviewSaved: Boolean = false,
-    val editingReviewId: String? = null
+    val editingReviewId: String? = null,
+    val lastDeletedItem: ReviewHistoryItem? = null
 ) {
     val selectedFiles: List<FileItem>
         get() = files.filter { it.isSelected }

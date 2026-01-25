@@ -1,4 +1,4 @@
-package com.sagrd.codereviewerapp
+package com.sagrd.codereviewerapp.ui.code_review
 
 
 import androidx.compose.foundation.clickable
@@ -56,6 +56,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.sagrd.codereviewerapp.data.FileItem
+import com.sagrd.codereviewerapp.data.ProjectType
 import com.sagrd.codereviewerapp.ui.theme.CodeReviewerAppTheme
 
 

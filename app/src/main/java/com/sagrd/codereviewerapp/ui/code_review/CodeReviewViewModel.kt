@@ -1,4 +1,4 @@
-package com.sagrd.codereviewerapp
+package com.sagrd.codereviewerapp.ui.code_review
 
 
 import androidx.lifecycle.ViewModel
@@ -10,6 +10,13 @@ import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.firestore
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import com.sagrd.codereviewerapp.BuildConfig
+import com.sagrd.codereviewerapp.data.CodeComment
+import com.sagrd.codereviewerapp.data.FileItem
+import com.sagrd.codereviewerapp.data.FirestoreRepository
+import com.sagrd.codereviewerapp.data.GitHubApi
+import com.sagrd.codereviewerapp.data.ProjectType
+import com.sagrd.codereviewerapp.data.ReviewHistoryItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,7 +36,7 @@ import java.util.Date
 // ViewModel
 class CodeReviewViewModel : ViewModel() {
     // Gemini API key - In production, this should be stored securely
-    private val geminiApiKey: String = com.sagrd.codereviewerapp.BuildConfig.GEMINI_API_KEY
+    private val geminiApiKey: String = BuildConfig.GEMINI_API_KEY
 
     private val generativeModel = if (geminiApiKey.isNotBlank()) {
         GenerativeModel(
@@ -167,10 +174,15 @@ class CodeReviewViewModel : ViewModel() {
                 }
             }
 
+            is CodeReviewUiEvent.UndoDeleteHistoryItem -> {
+                viewModelScope.launch {
+                    undoDeleteHistoryItem()
+                }
+            }
+
             is CodeReviewUiEvent.EditReview -> {
                 editReview(event.item)
             }
-
 
 
             is CodeReviewUiEvent.ConsumeReviewSavedEvent -> {
@@ -257,7 +269,8 @@ class CodeReviewViewModel : ViewModel() {
             _uiState.update { state ->
                 state.copy(
                     history = state.history.filter { it.id != item.id },
-                    isLoading = false
+                    isLoading = false,
+                    lastDeletedItem = item
                 )
             }
         } else {
@@ -268,6 +281,27 @@ class CodeReviewViewModel : ViewModel() {
                 )
             }
         }
+    }
+
+    private suspend fun undoDeleteHistoryItem() {
+        val itemToRestore = _uiState.value.lastDeletedItem ?: return
+        _uiState.update { it.copy(isLoading = true) }
+        
+        val result = firestoreRepository.saveReviewHistory(itemToRestore)
+        result.fold(
+            onSuccess = {
+                loadHistory()
+                _uiState.update { it.copy(lastDeletedItem = null) }
+            },
+            onFailure = { e ->
+                _uiState.update {
+                    it.copy(
+                        error = "Error al restaurar: ${e.message}",
+                        isLoading = false
+                    )
+                }
+            }
+        )
     }
 
     private fun toggleFileSelection(file: FileItem) {
@@ -293,7 +327,8 @@ class CodeReviewViewModel : ViewModel() {
                         set(existingCommentIndex, CodeComment(
                             currentState.currentFileName,
                             currentState.currentComment
-                        ))
+                        )
+                        )
                     }
                 } else {
                     // Add new comment

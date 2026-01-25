@@ -1,4 +1,4 @@
-package com.sagrd.codereviewerapp.navigation
+package com.sagrd.codereviewerapp.ui.navigation
 
 import kotlinx.serialization.Serializable
 

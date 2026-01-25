@@ -1,4 +1,4 @@
-package com.sagrd.codereviewerapp
+package com.sagrd.codereviewerapp.data
 
 import retrofit2.http.GET
 import retrofit2.http.Path
