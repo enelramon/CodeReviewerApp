@@ -16,16 +16,36 @@ import com.sagrd.codereviewerapp.ui.code_review.ReviewScreen
 import com.sagrd.codereviewerapp.ui.code_review.SelectionScreen
 import com.sagrd.codereviewerapp.ui.code_review.SummaryScreen
 
+import com.sagrd.codereviewerapp.ui.login.LoginScreen
+import com.sagrd.codereviewerapp.ui.login.LoginViewModel
+
 @Composable
 fun CodeReviewerNavHost() {
     val navController = rememberNavController()
     val viewModel: CodeReviewViewModel = viewModel()
+    val loginViewModel: LoginViewModel = viewModel()
+
+    val startDestination = if (loginViewModel.currentUser != null && !loginViewModel.isAnonymousUser) {
+        Destinations.Selection
+    } else {
+        Destinations.Login
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
-        NavHost(navController = navController, startDestination = Destinations.Selection) {
+        NavHost(navController = navController, startDestination = startDestination) {
+            composable<Destinations.Login> {
+                LoginScreen(
+                    viewModel = loginViewModel,
+                    onLoginSuccess = {
+                        navController.navigate(Destinations.Selection) {
+                            popUpTo(Destinations.Login) { inclusive = true }
+                        }
+                    }
+                )
+            }
             composable<Destinations.Selection> {
                 SelectionScreen(
                     viewModel = viewModel,

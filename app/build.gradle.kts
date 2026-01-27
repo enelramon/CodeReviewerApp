@@ -101,6 +101,7 @@ dependencies {
     // Al usar el BoM, no necesitas especificar versiones en las siguientes:
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.auth)
+    implementation(libs.play.services.auth)
     implementation(libs.firebase.analytics)
 
     // Si usas corrutinas con Firebase (como en el repositorio que hicimos),

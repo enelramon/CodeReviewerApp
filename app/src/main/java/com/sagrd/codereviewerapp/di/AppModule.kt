@@ -9,6 +9,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.firestore
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import com.sagrd.codereviewerapp.BuildConfig
+import com.sagrd.codereviewerapp.data.AuthRepository
 import com.sagrd.codereviewerapp.data.FirestoreRepository
 import com.sagrd.codereviewerapp.data.GeminiRepository
 import com.sagrd.codereviewerapp.data.GitHubApi
@@ -16,6 +17,7 @@ import com.sagrd.codereviewerapp.data.GitHubRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -85,4 +87,11 @@ object AppModule {
     @Provides
     @Singleton
     fun provideGeminiRepository(generativeModel: GenerativeModel?) = GeminiRepository(generativeModel)
+
+    @Provides
+    @Singleton
+    fun provideAuthRepository(
+        auth: FirebaseAuth,
+        @ApplicationContext context: android.content.Context
+    ) = AuthRepository(auth, context)
 }

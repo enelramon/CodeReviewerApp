@@ -1,7 +1,9 @@
 package com.sagrd.codereviewerapp.ui.code_review
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,10 +26,12 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -49,7 +53,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -150,6 +158,7 @@ fun HistoryScreenBody(
                         val dismissState = rememberSwipeToDismissBoxState()
                         SwipeToDismissBox(
                             state = dismissState,
+                            enableDismissFromStartToEnd = false,
                             onDismiss = {
                                 onEvent(CodeReviewUiEvent.DeleteHistoryItem(historyItem))
                                 scope.launch {
@@ -164,35 +173,35 @@ fun HistoryScreenBody(
                                 }
                             },
                             backgroundContent = {
-                                val color = when (dismissState.dismissDirection) {
-                                    SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.errorContainer
-                                    else -> Color.Transparent
-                                }
+                                val scale by animateFloatAsState(
+                                    targetValue = if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart) 1.5f else 1.0f,
+                                    label = "Icon Scale Animation"
+                                )
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
+                                        .clip(MaterialTheme.shapes.medium)
                                         .padding(vertical = 8.dp)
-                                        .background(color)
+                                        .background(MaterialTheme.colorScheme.errorContainer)
                                         .padding(horizontal = 16.dp),
                                     contentAlignment = Alignment.CenterEnd
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Delete,
                                         contentDescription = "Eliminar",
-                                        tint = MaterialTheme.colorScheme.onErrorContainer
+                                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                                        modifier = Modifier.scale(scale)
                                     )
                                 }
-                            },
-                            content = {
-                                ReviewItem(
-                                    historyItem = historyItem,
-                                    onEvent = onEvent,
-                                    onNavigateToReview = onNavigateToReview,
-                                    onNavigateToSummary = onNavigateToSummary
-                                )
-                            },
-                            enableDismissFromStartToEnd = false
-                        )
+                            }
+                        ) {
+                            ReviewItem(
+                                historyItem = historyItem,
+                                onEvent = onEvent,
+                                onNavigateToReview = onNavigateToReview,
+                                onNavigateToSummary = onNavigateToSummary
+                            )
+                        }
                     }
                 }
             }
@@ -230,15 +239,20 @@ private fun ReviewItem(
     onNavigateToReview: () -> Unit,
     onNavigateToSummary: () -> Unit,
 ) {
-    Card(
+    val haptics = LocalHapticFeedback.current
+    ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp)
-            .clickable {
-                onEvent(CodeReviewUiEvent.EditReview(historyItem))
-                onNavigateToReview()
-            },
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            .combinedClickable(
+                onClick = {
+                    onEvent(CodeReviewUiEvent.EditReview(historyItem))
+                    onNavigateToReview()
+                },
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress) 
+                }
+            )
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
